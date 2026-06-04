@@ -19,6 +19,13 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.minimax.chat/v1/text/chatcompletion_v2"
+_EMBED_URL = "https://api.minimax.chat/v1/embeddings"
+
+# Embedding 向量维度（MiniMax embo-01 固定 1536 维）
+EMBEDDING_DIM = 1536
+
+# 每次 Embedding API 最多传入的文本数量
+_EMBED_BATCH_SIZE = 32
 
 # ── 连接池配置 ─────────────────────────────────────────────────
 # keepalive_expiry：空闲连接最长保留时间（秒），超时后被主动关闭
@@ -99,7 +106,43 @@ def _parse_json(text: str) -> dict | list:
 
 # ── 公开方法 ──────────────────────────────────────────────────
 
-def answer_question(question: str, course: str | None, history: list[dict]) -> dict:
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    """
+    调用 MiniMax Embedding API，批量将文本转为向量。
+    返回与 texts 等长的向量列表，每个向量维度为 1536。
+    单次最多 _EMBED_BATCH_SIZE 条，自动分批处理。
+    """
+    if not texts:
+        return []
+    all_embeddings: list[list[float]] = []
+    for i in range(0, len(texts), _EMBED_BATCH_SIZE):
+        batch = texts[i: i + _EMBED_BATCH_SIZE]
+        payload = {
+            "model": settings.minimax_embedding_model,
+            "input": batch,
+            "type": "query",  # query 模式，适用于检索场景
+        }
+        try:
+            resp = _get_client().post(_EMBED_URL, headers=_headers(), json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            # MiniMax 返回格式：{"data": [{"embedding": [...], "index": 0}, ...]}
+            sorted_items = sorted(data["data"], key=lambda x: x["index"])
+            all_embeddings.extend(item["embedding"] for item in sorted_items)
+        except httpx.HTTPStatusError as e:
+            logger.error("MiniMax Embedding HTTP 错误: %s", e)
+            raise RuntimeError(f"Embedding 服务异常: {e.response.status_code}") from e
+        except Exception as e:
+            logger.error("MiniMax Embedding 调用失败: %s", e)
+            raise RuntimeError(f"Embedding 服务不可用: {e}") from e
+    return all_embeddings
+
+
+def embed_query(text: str) -> list[float]:
+    """对单条查询文本向量化，返回 1536 维向量。"""
+    return embed_texts([text])[0]
+
+def answer_question(question: str, course: str | None, history: list[dict], context: str = "") -> dict:
     """
     学生智能问答。
     返回: {"answer": str, "suggestions": list[str]}
@@ -111,8 +154,9 @@ def answer_question(question: str, course: str | None, history: list[dict]) -> d
             for m in history[-6:]  # 最近 3 轮
         )
     course_hint = f"当前课程：{course}。" if course else ""
+    context_hint = f"\n\n以下是与问题相关的课程材料，请优先基于这些内容作答：\n{context}" if context else ""
     system = (
-        f"你是一个专业的学习助手。{course_hint}"
+        f"你是一个专业的学习助手。{course_hint}{context_hint}"
         "请用简洁、准确的语言回答学生的问题，并在最后给出 2-3 条学习建议。"
         '以 JSON 格式返回，格式为：{"answer": "...", "suggestions": ["...", "..."]}'
     )
@@ -164,6 +208,63 @@ def generate_learning_plan(course: str, goal: str, basis: dict, available_minute
         return _parse_json(raw)
     except Exception:
         return {"analysis": {}, "plan": []}
+
+
+def grade_quiz_answer(question: str, correct_answer: str, student_answer: str, score: float) -> dict:
+    """
+    AI 批改简答题。
+    返回: {"score": float, "feedback": str}
+    """
+    system = (
+        "你是一个严谨的简答题批改助手。根据参考答案对学生回答评分，满分为给定的 score 值。"
+        "以 JSON 格式返回，包含字段：score（实际得分，不超过满分）、feedback（简短评语，指出优缺点）。"
+    )
+    user = (
+        f"满分：{score}\n"
+        f"题目：{question}\n"
+        f"参考答案：{correct_answer}\n"
+        f"学生回答：{student_answer}"
+    )
+    raw = _chat(system, user, temperature=0.3)
+    try:
+        result = _parse_json(raw)
+        result["score"] = min(float(result.get("score", 0)), score)
+        return result
+    except Exception:
+        return {"score": 0.0, "feedback": raw}
+
+
+def adjust_learning_plan(
+    course: str,
+    original_plan: list,
+    progress: list,
+    student_feedback: str,
+    available_minutes: int,
+) -> dict:
+    """
+    基于学生的完成进度和反馈，对已有计划进行增量调整。
+    progress: [{"day": 1, "completed": true, "feedback": "已掌握"}, ...]
+    返回: {"analysis": {...}, "plan": [...]}，plan 为完整调整后的新计划。
+    """
+    system = (
+        "你是一个专业的学习规划助手。学生已按照原计划执行了一段时间，"
+        "现在根据完成情况和反馈，对剩余计划进行调整。"
+        "保留已完成的任务，只调整未完成部分。"
+        "以 JSON 格式返回，包含字段：analysis（包含 adjustment_reason、completed_days、remaining_days）"
+        "和 plan（完整的新计划列表，已完成的任务也要包含，day 编号保持连续）。"
+    )
+    user = (
+        f"课程：{course}\n"
+        f"每天可用时间：{available_minutes} 分钟\n"
+        f"原计划：{json.dumps(original_plan, ensure_ascii=False)}\n"
+        f"完成情况：{json.dumps(progress, ensure_ascii=False)}\n"
+        f"学生反馈：{student_feedback}"
+    )
+    raw = _chat(system, user)
+    try:
+        return _parse_json(raw)
+    except Exception:
+        return {"analysis": {}, "plan": original_plan}
 
 
 def grade_submission(content: str, reference_answer: str, rubric: str) -> dict:

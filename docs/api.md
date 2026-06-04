@@ -108,10 +108,11 @@ Authorization: Bearer <token>
 | 课程公告 | [api/announcements.md](api/announcements.md) | `/api/courses/{id}/announcements` | 教师发布公告、学生查看（含已读状态） |
 | 讨论 | [api/discussions.md](api/discussions.md) | `/api/courses/{id}/discussions` | 教师发起讨论，师生均可回复 |
 | 提问 | [api/questions.md](api/questions.md) | `/api/courses/{id}/questions` | 学生向教师提问，支持公开/私密，教师回答 |
+| 测试 | [api/quizzes.md](api/quizzes.md) | `/api/teacher/courses/{id}/quizzes`<br>`/api/student/courses/{id}/quizzes` | 教师发布测试（单选/多选/判断/简答），学生作答，系统自动批改 |
 | 分数与成绩 | [api/scores.md](api/scores.md) | `/api/student/courses/{id}/scores`<br>`/api/student/scores`（跨课程聚合）<br>`/api/teacher/courses/{id}/scores` | 学生查看成绩明细和排名、教师查看班级分布 |
 | 智能问答 | [api/chat.md](api/chat.md) | `/api/student/courses/{id}/chat` | 基于课程材料 RAG 检索的 AI 问答、会话历史 |
 | 知识点总结 | [api/summaries.md](api/summaries.md) | `/api/student/courses/{id}/summaries` | 基于课程材料 RAG 或自定义文本生成结构化总结 |
-| 个性化学习计划 | [api/learning_plans.md](api/learning_plans.md) | `/api/student/courses/{id}/learning-plans` | 综合成绩、问答、提问、讨论、个人信息和 RAG 生成学习计划 |
+| 个性化学习计划 | [api/learning_plans.md](api/learning_plans.md) | `/api/student/courses/{id}/learning-plans` | 综合 8 类信号生成计划；支持进度打卡、效果反馈、多轮调整 |
 
 ---
 
@@ -127,6 +128,7 @@ Authorization: Bearer <token>
 | 课程公告 | `/api/courses/{id}/announcements` | `app/api/routes_announcements.py` |
 | 讨论 | `/api/courses/{id}/discussions` | `app/api/routes_discussions.py` |
 | 提问 | `/api/courses/{id}/questions` | `app/api/routes_questions.py` |
+| 测试 | `/api/teacher/courses/{id}/quizzes`<br>`/api/student/courses/{id}/quizzes` | `app/api/routes_quizzes.py` |
 | 分数与成绩 | `/api/student/courses/{id}/scores`<br>`/api/student/scores`<br>`/api/teacher/courses/{id}/scores` | `app/api/routes_scores.py` |
 | 智能问答 | `/api/student/courses/{id}/chat` | `app/api/routes_chat.py` |
 | 知识点总结 | `/api/student/courses/{id}/summaries` | `app/api/routes_summaries.py` |

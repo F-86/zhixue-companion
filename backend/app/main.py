@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.db.init_db import init_db
+from app.db.vector_store import init_vector_store
 from app.services import minimax_client
 
 # 模块加载时立即创建必要目录，确保 StaticFiles mount 不报错
@@ -17,16 +18,18 @@ os.makedirs(settings.log_dir, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时建表（目录已在上方创建）
+    # 启动时建表（关系数据库）
     init_db()
-    # 预热 MiniMax HTTP 连接池（惰性初始化）
+    # 启动时初始化向量数据库
+    init_vector_store()
+    # 预热 MiniMax HTTP 连接池
     minimax_client._get_client()
     yield
-    # 关闭时释放 HTTP 连接池，优雅退出
+    # 关闭时释放 HTTP 连接池
     minimax_client.close()
 
 
-app = FastAPI(title="智学伴侣 API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="智学伴侣 API", version="0.2.0", lifespan=lifespan)
 
 # CORS（开发阶段允许所有来源，生产环境按需收窄）
 app.add_middleware(
@@ -43,19 +46,31 @@ app.mount("/files", StaticFiles(directory=settings.upload_dir), name="files")
 # ── 注册路由 ──────────────────────────────────────────────────
 from app.api import (  # noqa: E402
     routes_auth,
+    routes_courses,
+    routes_sections,
+    routes_assignments,
+    routes_announcements,
+    routes_discussions,
+    routes_questions,
+    routes_scores,
     routes_chat,
-    routes_student_assignments,
-    routes_summary,
+    routes_summaries,
     routes_learning_plans,
-    routes_teacher_assignments,
+    routes_quizzes,
 )
 
 app.include_router(routes_auth.router, prefix="/api")
+app.include_router(routes_courses.router, prefix="/api")
+app.include_router(routes_sections.router, prefix="/api")
+app.include_router(routes_assignments.router, prefix="/api")
+app.include_router(routes_announcements.router, prefix="/api")
+app.include_router(routes_discussions.router, prefix="/api")
+app.include_router(routes_questions.router, prefix="/api")
+app.include_router(routes_scores.router, prefix="/api")
 app.include_router(routes_chat.router, prefix="/api")
-app.include_router(routes_student_assignments.router, prefix="/api")
-app.include_router(routes_summary.router, prefix="/api")
+app.include_router(routes_summaries.router, prefix="/api")
 app.include_router(routes_learning_plans.router, prefix="/api")
-app.include_router(routes_teacher_assignments.router, prefix="/api")
+app.include_router(routes_quizzes.router, prefix="/api")
 
 
 # ── 健康检查 ──────────────────────────────────────────────────

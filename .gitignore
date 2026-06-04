@@ -60,6 +60,9 @@ backend/uploads/
 # 运行日志
 backend/logs/
 
+# ChromaDB 本地持久化目录（向量库数据，不提交）
+backend/chroma_db/
+
 # pytest
 .pytest_cache/
 .coverage
