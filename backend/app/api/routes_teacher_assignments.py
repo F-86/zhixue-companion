@@ -108,6 +108,21 @@ def list_submissions(
     return _ok(svc.list_submissions(course_id, assignment_id, current_user.id, db))
 
 
+@router.get("/teacher/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}")
+def get_submission_detail(
+    course_id: str,
+    assignment_id: str,
+    submission_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    result = svc.list_submissions(course_id, assignment_id, current_user.id, db)
+    for item in result["items"]:
+        if item["id"] == submission_id:
+            return _ok(item)
+    raise HTTPException(status_code=404, detail="提交不存在")
+
+
 # ── AI 批改 ───────────────────────────────────────────────────
 
 @router.post("/teacher/courses/{course_id}/assignments/{assignment_id}/grade")
