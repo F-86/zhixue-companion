@@ -129,6 +129,7 @@ def create_plan(course_id: str, student_id: str, goal: str | None,
         raise HTTPException(status_code=404, detail="课程不存在")
     basis, data_sources = _collect_signals(course_id, student_id, db)
     basis["available_time_per_day"] = available_time_per_day
+    basis["plan_days"] = plan_days
     if goal:
         basis["goal"] = goal
 
