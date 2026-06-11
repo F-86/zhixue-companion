@@ -1,13 +1,14 @@
-"""查重与作业比对合并服务（AI + C++ 指纹预处理）"""
+"""查重与作业比对合并服务（AI + C++ 指纹预处理）—— 业务编排层"""
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.analysis_report import AnalysisReport
 from app.models.assignment import Assignment
 from app.models.file import File as FileModel
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
-from app.services import file_processor_client, minimax_client
+from app.db.repositories.analysis_report import get_report_by_assignment, upsert_report
+from app.file_processing import get_fingerprint, batch_compare
+from app.services.minimax_client import analyze_submissions as ai_analyze
 
 
 def analyze(
@@ -17,7 +18,7 @@ def analyze(
     similarity_threshold: float,
     compare_dimensions: list[str],
     db: Session,
-) -> AnalysisReport:
+):
     a = db.get(Assignment, assignment_id)
     if not a or a.teacher_id != teacher_id:
         raise HTTPException(status_code=404, detail="作业不存在")
@@ -53,17 +54,15 @@ def analyze(
     # C++ pybind11：文本预处理 + 指纹粗筛
     fingerprint_data = {}
     for i, s in enumerate(submissions_data):
-        fp = file_processor_client.get_fingerprint(s["text"])
+        fp = get_fingerprint(s["text"])
         fingerprint_data[s["id"]] = fp
 
-    suspect_pairs = file_processor_client.batch_compare(texts, threshold=similarity_threshold)
+    suspect_pairs = batch_compare(texts, threshold=similarity_threshold)
 
     # MiniMax：语义分析 + 比对
-    ai_result = minimax_client.analyze_submissions(
-        submissions_data, suspect_pairs, compare_dimensions
-    )
+    ai_result = ai_analyze(submissions_data, suspect_pairs, compare_dimensions)
 
-    # 补充提交 ID 到 suspicious_pairs（MiniMax 返回的是学生名，补全 submission_id）
+    # 补充提交 ID 到 suspicious_pairs
     name_to_sub = {s["student_name"]: s["id"] for s in submissions_data}
     for pair in ai_result.get("suspicious_pairs", []):
         if "submission_a" not in pair:
@@ -75,45 +74,14 @@ def analyze(
         if "submission_id" not in detail:
             detail["submission_id"] = name_to_sub.get(detail.get("student_name", ""), "")
 
-    # 保存报告（每个作业保留最新一份）
-    existing = (
-        db.query(AnalysisReport)
-        .filter(AnalysisReport.assignment_id == assignment_id)
-        .first()
-    )
-    if existing:
-        existing.suspicious_pairs = ai_result.get("suspicious_pairs", [])
-        existing.comparison_details = ai_result.get("comparison_details", [])
-        existing.common_issues = ai_result.get("common_issues", [])
-        existing.teaching_suggestions = ai_result.get("teaching_suggestions", [])
-        existing.fingerprint_data = fingerprint_data
-        db.commit()
-        db.refresh(existing)
-        return existing
-
-    report = AnalysisReport(
-        assignment_id=assignment_id,
-        suspicious_pairs=ai_result.get("suspicious_pairs", []),
-        comparison_details=ai_result.get("comparison_details", []),
-        common_issues=ai_result.get("common_issues", []),
-        teaching_suggestions=ai_result.get("teaching_suggestions", []),
-        fingerprint_data=fingerprint_data,
-    )
-    db.add(report)
-    db.commit()
-    db.refresh(report)
-    return report
+    return upsert_report(assignment_id, ai_result, fingerprint_data, db)
 
 
-def get_report(assignment_id: str, teacher_id: str, db: Session) -> AnalysisReport:
+def get_report(assignment_id: str, teacher_id: str, db: Session):
     a = db.get(Assignment, assignment_id)
     if not a or a.teacher_id != teacher_id:
         raise HTTPException(status_code=404, detail="作业不存在")
-    report = (
-        db.query(AnalysisReport)
-        .filter(AnalysisReport.assignment_id == assignment_id)
-        .first()
-    )
+    report = get_report_by_assignment(assignment_id, db)
     if not report:
         raise HTTPException(status_code=404, detail="尚未执行分析，请先触发查重与比对")
     return report

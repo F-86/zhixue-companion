@@ -186,7 +186,7 @@ class TestCollectSignals:
             "wrong_questions": ["进程调度的基本单位是？"],
         }]
         mocker.patch(
-            "app.services.quiz_service.get_quiz_scores_for_signals",
+            "app.db.repositories.quiz.get_quiz_scores_for_signals",
             return_value=fake_quiz_records,
         )
 
@@ -282,7 +282,7 @@ class TestCreatePlan:
         mocker.patch("app.services.minimax_client.embed_query", return_value=[0.1] * 1536)
         mocker.patch("app.db.vector_store.query_chunks", return_value=[])
         mocker.patch(
-            "app.services.quiz_service.get_quiz_scores_for_signals",
+            "app.db.repositories.quiz.get_quiz_scores_for_signals",
             return_value=[],
         )
         mocker.patch(
@@ -357,7 +357,7 @@ class TestCreatePlan:
             {"section_id": "s1", "section_title": "第一章", "file_name": "ch1.pdf",
              "excerpt": "相关材料内容", "score": 0.9},
         ])
-        mocker.patch("app.services.quiz_service.get_quiz_scores_for_signals", return_value=[
+        mocker.patch("app.db.repositories.quiz.get_quiz_scores_for_signals", return_value=[
             {"quiz_title": "小测", "score": 60.0, "full_score": 100.0,
              "wrong_questions": ["进程调度基础题"]}
         ])

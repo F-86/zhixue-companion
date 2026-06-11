@@ -1,9 +1,14 @@
-"""知识点总结服务（课程路径版，支持 RAG）"""
+"""知识点总结服务（课程路径版，支持 RAG）—— 业务编排层"""
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.summary import Summary
-from app.services.course_service import _require_enrollment
+from app.db.repositories.course import require_enrollment as _require_enrollment, get_course_name
+from app.db.repositories.summary import (
+    create_summary_obj,
+    list_summaries as list_summaries_repo,
+    get_summary_obj,
+    delete_summary,
+)
 
 
 def create_summary(course_id: str, student_id: str, title: str,
@@ -12,7 +17,6 @@ def create_summary(course_id: str, student_id: str, title: str,
     _require_enrollment(course_id, student_id, db)
     rag_used = False
     refs = []
-    # 确定总结原文
     if source_text:
         text_to_summarize = source_text
     elif section_id:
@@ -25,24 +29,19 @@ def create_summary(course_id: str, student_id: str, title: str,
         rag_used = True
     else:
         raise HTTPException(status_code=400, detail="请提供 source_text 或 section_id")
-    from app.models.course import Course
-    course = db.get(Course, course_id)
-    course_name = course.name if course else ""
-    from app.services import minimax_client
-    result = minimax_client.generate_summary(title, text_to_summarize, summary_type, course_name)
+
+    course_name = get_course_name(course_id, db)
+    from app.services.minimax_client import generate_summary
+    result = generate_summary(title, text_to_summarize, summary_type, course_name)
+
     section_title = None
     if section_id:
         from app.models.section import Section
         sec = db.get(Section, section_id)
         section_title = sec.title if sec else None
-    s_obj = Summary(
-        user_id=student_id, course_id=course_id, section_id=section_id,
-        title=title, source_text=source_text, summary_type=summary_type,
-        rag_used=rag_used, result=result,
-    )
-    db.add(s_obj)
-    db.commit()
-    db.refresh(s_obj)
+
+    s_obj = create_summary_obj(student_id, course_id, section_id, title, source_text,
+                                summary_type, rag_used, result, db)
     return {
         "id": s_obj.id, "course_id": course_id, "section_id": section_id,
         "section_title": section_title, "title": title,
@@ -54,12 +53,7 @@ def create_summary(course_id: str, student_id: str, title: str,
 def list_summaries(course_id: str, student_id: str,
                    section_id: str | None, keyword: str | None, db: Session) -> dict:
     _require_enrollment(course_id, student_id, db)
-    q = db.query(Summary).filter(Summary.user_id == student_id, Summary.course_id == course_id)
-    if section_id:
-        q = q.filter(Summary.section_id == section_id)
-    if keyword:
-        q = q.filter(Summary.title.contains(keyword))
-    items_raw = q.order_by(Summary.created_at.desc()).all()
+    items_raw = list_summaries_repo(course_id, student_id, section_id, keyword, db)
     items = []
     for s in items_raw:
         section_title = None
@@ -76,9 +70,7 @@ def list_summaries(course_id: str, student_id: str,
 
 def get_summary(course_id: str, summary_id: str, student_id: str, db: Session) -> dict:
     _require_enrollment(course_id, student_id, db)
-    s = db.get(Summary, summary_id)
-    if not s or s.user_id != student_id or s.course_id != course_id:
-        raise HTTPException(status_code=404, detail="总结不存在")
+    s = get_summary_obj(course_id, summary_id, student_id, db)
     section_title = None
     refs = []
     if s.section_id:
@@ -93,12 +85,3 @@ def get_summary(course_id: str, summary_id: str, student_id: str, db: Session) -
         "rag_used": s.rag_used, "references": refs,
         "summary": s.result, "created_at": s.created_at,
     }
-
-
-def delete_summary(course_id: str, summary_id: str, student_id: str, db: Session) -> None:
-    _require_enrollment(course_id, student_id, db)
-    s = db.get(Summary, summary_id)
-    if not s or s.user_id != student_id or s.course_id != course_id:
-        raise HTTPException(status_code=404, detail="总结不存在")
-    db.delete(s)
-    db.commit()

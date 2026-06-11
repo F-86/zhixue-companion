@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.file import File as FileModel
-from app.services import file_processor_client
+from app.file_processing import extract_text
 from app.services.auth_service import get_current_user
 
 router = APIRouter(tags=["文件上传"])
@@ -48,7 +48,7 @@ async def upload_file(
         f.write(content)
 
     # 提取文本
-    extracted_text = file_processor_client.extract_text(save_path)
+    extracted_text = extract_text(save_path)
 
     # 写入 files 表
     record = FileModel(
