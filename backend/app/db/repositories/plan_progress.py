@@ -36,7 +36,7 @@ def mark_task(course_id: str, plan_id: str, student_id: str,
     return {
         "plan_id": plan_id, "day": day,
         "completed": record.completed, "feedback": record.feedback,
-        "completed_at": record.completed_at,
+        "completed_at": record.completed_at.isoformat() if record.completed_at else None,
     }
 
 

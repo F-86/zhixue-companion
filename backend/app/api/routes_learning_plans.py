@@ -60,7 +60,8 @@ def get_plan(course_id: str, plan_id: str,
 @router.patch("/student/courses/{course_id}/learning-plans/{plan_id}/status")
 def update_plan_status(course_id: str, plan_id: str, req: PlanStatusRequest,
                         current_user=Depends(require_student), db: Session = Depends(get_db)):
-    return _ok(svc.update_plan_status(course_id, plan_id, current_user.id, req.status, db), "updated")
+    p = svc.update_plan_status(course_id, plan_id, current_user.id, req.status, db)
+    return _ok({"id": p.id, "status": p.status, "updated_at": p.updated_at.isoformat()}, "updated")
 
 
 # ── 进度跟踪 ──────────────────────────────────────────────────
