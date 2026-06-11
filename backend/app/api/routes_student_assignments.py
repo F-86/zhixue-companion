@@ -20,7 +20,7 @@ def list_assignments(
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
-    result = svc.list_assignments(current_user.id, course, status, db)
+    result = svc.list_assignments(course_id, current_user.id, course, status, db)
     return _ok(result)
 
 
