@@ -69,7 +69,9 @@ def my_submission(assignment_id: str, current_user=Depends(require_student), db:
         "id": sub.id,
         "assignment_id": sub.assignment_id,
         "submit_type": sub.submit_type,
+        "content": sub.content,
         "file_url": file_url,
+        "file_urls": [file_url] if file_url else [],
         "submitted_at": sub.submitted_at,
         "status": sub.status,
     })

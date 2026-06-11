@@ -264,7 +264,10 @@ def get_my_submission(course_id: str, assignment_id: str, student_id: str, db: S
     file_url = f"/files/{os.path.basename(sub.file_path)}" if sub.file_path else None
     return {
         "id": sub.id, "assignment_id": assignment_id,
-        "submit_type": sub.submit_type, "file_url": file_url,
+        "submit_type": sub.submit_type,
+        "content": sub.content,
+        "file_url": file_url,
+        "file_urls": [file_url] if file_url else [],
         "submitted_at": sub.submitted_at, "status": sub.status,
         "score": grade.final_score if grade and grade.confirmed else None,
         "ai_score": grade.ai_score if grade else None,
