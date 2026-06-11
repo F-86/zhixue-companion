@@ -230,7 +230,7 @@ def get_student_assignment(course_id: str, assignment_id: str, student_id: str, 
 
 async def submit_assignment(
     course_id: str, assignment_id: str, student_id: str,
-    submit_type: str, content: str | None, files: list[UploadFile], db: Session,
+    submit_type: str, content: str | None, file: list[UploadFile], db: Session,
 ) -> Submission:
     _require_enrollment(course_id, student_id, db)
     a = _require_assignment(assignment_id, course_id, db)
@@ -250,15 +250,15 @@ async def submit_assignment(
     db.add(sub)
     db.flush()
 
-    if submit_type == "file" and files:
-        for file in files:
-            ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "bin"
+    if submit_type == "file" and file:
+        for f in file:
+            ext = f.filename.rsplit(".", 1)[-1].lower() if "." in (f.filename or "") else "bin"
             import uuid
             fname = f"submission_{uuid.uuid4()}.{ext}"
             fpath = os.path.join(settings.upload_dir, fname)
-            data = await file.read()
-            with open(fpath, "wb") as f:
-                f.write(data)
+            data = await f.read()
+            with open(fpath, "wb") as fw:
+                fw.write(data)
             extracted_text = None
             try:
                 from app.services.file_processor_client import extract_text
@@ -267,7 +267,7 @@ async def submit_assignment(
                 pass
             db.add(SubmissionFile(
                 submission_id=sub.id,
-                filename=file.filename or "unknown",
+                filename=f.filename or "unknown",
                 file_path=fpath,
                 file_size=len(data),
                 extracted_text=extracted_text,
