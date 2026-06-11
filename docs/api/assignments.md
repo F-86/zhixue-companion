@@ -262,6 +262,7 @@ GET /api/teacher/courses/{course_id}/assignments/{assignment_id}
     "status": "open",
     "attachment_url": "/files/assignment_001_topic.pdf",
     "submission_count": 25,
+    "total_students": 35,
     "created_at": "2026-06-04T10:00:00+08:00",
     "updated_at": "2026-06-04T10:00:00+08:00"
   },

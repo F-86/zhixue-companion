@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
+from app.models.course import CourseEnrollment
 from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
@@ -99,6 +100,7 @@ def get_teacher_assignment(course_id: str, assignment_id: str, teacher_id: str, 
     a = _require_assignment(assignment_id, course_id, db)
     sid, stitle = _section_info(a.section_id, db)
     sub_count = db.query(Submission).filter(Submission.assignment_id == a.id).count()
+    total_students = db.query(CourseEnrollment).filter(CourseEnrollment.course_id == course_id).count()
     attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
     return {
         "id": a.id, "course_id": course_id, "section_id": sid,
@@ -106,6 +108,7 @@ def get_teacher_assignment(course_id: str, assignment_id: str, teacher_id: str, 
         "reference_answer": a.reference_answer, "rubric": a.rubric,
         "due_at": a.due_at, "full_score": a.full_score, "status": a.status,
         "attachment_url": attachment_url, "submission_count": sub_count,
+        "total_students": total_students,
         "created_at": a.created_at, "updated_at": a.updated_at,
     }
 
