@@ -85,7 +85,7 @@ cpp_processor/dist/
 cpp_processor/*.egg-info/
 
 # pybind11 编译出的 Python 扩展
-cpp_processor/*.so
+*.so
 cpp_processor/*.pyd
 cpp_processor/*.dylib
 cpp_processor/*.dll

@@ -54,7 +54,8 @@ static std::string read_pdf(const std::string& path) {
         auto page = doc->create_page(i);
         if (page) {
             // page->text() 返回 poppler::ustring，需转 UTF-8
-            result += page->text().to_utf8();
+            auto utf8_bytes = page->text().to_utf8();
+            result.append(utf8_bytes.data(), utf8_bytes.size());
             result += '\n';
         }
     }

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.services import announcement_service as svc
-from app.services.auth_service import get_current_user, require_student, require_teacher
+from app.services.auth_service import get_current_user, require_teacher
 
 router = APIRouter(tags=["课程公告"])
 
@@ -66,5 +66,8 @@ def list_announcements(course_id: str, page: int = 1, page_size: int = 20,
 
 @router.get("/courses/{course_id}/announcements/{notice_id}")
 def get_announcement(course_id: str, notice_id: str,
-                      current_user=Depends(require_student), db: Session = Depends(get_db)):
+                      current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """教师和学生均可查看公告详情"""
+    if current_user.role == "teacher":
+        return _ok(svc.get_teacher_announcement(course_id, current_user.id, notice_id, db))
     return _ok(svc.get_student_announcement(course_id, current_user.id, notice_id, db))

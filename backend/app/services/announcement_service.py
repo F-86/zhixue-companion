@@ -56,6 +56,19 @@ def update_announcement(course_id: str, teacher_id: str, notice_id: str,
     return a
 
 
+def get_teacher_announcement(course_id: str, teacher_id: str, notice_id: str, db: Session) -> dict:
+    """教师查看单条公告（含已读统计）"""
+    _require_teacher_course(course_id, teacher_id, db)
+    a = _require_announcement(notice_id, course_id, db)
+    total_students = db.query(CourseEnrollment).filter(CourseEnrollment.course_id == course_id).count()
+    read_count = db.query(AnnouncementRead).filter(AnnouncementRead.announcement_id == notice_id).count()
+    return {
+        "id": a.id, "course_id": course_id, "title": a.title, "content": a.content,
+        "is_pinned": a.is_pinned, "read_count": read_count, "total_students": total_students,
+        "created_at": a.created_at, "updated_at": a.updated_at,
+    }
+
+
 def delete_announcement(course_id: str, teacher_id: str, notice_id: str, db: Session) -> None:
     _require_teacher_course(course_id, teacher_id, db)
     a = _require_announcement(notice_id, course_id, db)

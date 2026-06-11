@@ -194,7 +194,7 @@ def answer_question(question: str, course: str | None, history: list[dict], cont
     context_hint = f"\n\n以下是与问题相关的课程材料，请优先基于这些内容作答：\n{context}" if context else ""
     system = (
         f"你是一个专业的学习助手。{course_hint}{context_hint}"
-        "请用简洁、准确的语言回答学生的问题，并在最后给出 2-3 条学习建议。"
+        "请用简洁、准确的中文回答学生的问题，并在最后给出 2-3 条中文学习建议。"
         '以 JSON 格式返回，格式为：{"answer": "...", "suggestions": ["...", "..."]}'
     )
     user = f"{history_text}\n学生问题：{question}" if history_text else question
@@ -221,7 +221,7 @@ def answer_question_stream(question: str, course: str | None, history: list[dict
     context_hint = f"\n\n以下是与问题相关的课程材料，请优先基于这些内容作答：\n{context}" if context else ""
     system = (
         f"你是一个专业的学习助手。{course_hint}{context_hint}"
-        "请用简洁、准确的语言回答学生的问题。"
+        "请用简洁、准确的中文回答学生的问题。"
     )
     user = f"{history_text}\n学生问题：{question}" if history_text else question
     yield from _chat_stream(system, user)
@@ -237,8 +237,9 @@ def generate_summary(title: str, source_text: str, summary_type: str, course: st
     type_desc = type_map.get(summary_type, "结构化总结")
     system = (
         f"你是一个专业的学习内容整理助手。{course_hint}请对以下内容生成{type_desc}。"
-        "以 JSON 格式返回，包含字段：overview（概述）、key_points（要点列表）、"
-        "difficult_points（难点列表）、review_tips（复习建议列表）。"
+        "所有输出必须使用中文。"
+        "以 JSON 格式返回，包含字段：overview（中文概述）、key_points（中文要点列表）、"
+        "difficult_points（中文难点列表）、review_tips（中文复习建议列表）。"
     )
     raw = _chat(system, f"标题：{title}\n\n内容：{source_text}")
     try:
@@ -276,7 +277,8 @@ def grade_quiz_answer(question: str, correct_answer: str, student_answer: str, s
     """
     system = (
         "你是一个严谨的简答题批改助手。根据参考答案对学生回答评分，满分为给定的 score 值。"
-        "以 JSON 格式返回，包含字段：score（实际得分，不超过满分）、feedback（简短评语，指出优缺点）。"
+        "所有输出必须使用中文。"
+        "以 JSON 格式返回，包含字段：score（实际得分，不超过满分）、feedback（中文简短评语，指出优缺点）。"
     )
     user = (
         f"满分：{score}\n"
@@ -333,8 +335,10 @@ def grade_submission(content: str, reference_answer: str, rubric: str) -> dict:
     """
     system = (
         "你是一个严谨的作业批改助手。根据参考答案和评分标准对学生作业进行评分。"
-        "以 JSON 格式返回，包含字段：ai_score（0-100 的数字分数）、comments（总体评语）、"
-        "deductions（扣分点列表，每项含 point 和 minus 字段）、suggestions（修改建议列表）。"
+        "所有输出必须使用中文，包括 comments、deductions、suggestions 中的全部文字内容。"
+        "以 JSON 格式返回，包含字段：ai_score（0-100 的数字分数）、comments（中文总体评语）、"
+        "deductions（扣分点列表，每项含 point 和 minus 字段，point 用中文描述）、"
+        "suggestions（中文修改建议列表）。"
     )
     user = (
         f"【评分标准】\n{rubric}\n\n"
@@ -380,13 +384,15 @@ def analyze_submissions(
 
     system = (
         "你是一个专业的作业分析助手，负责查重和作业比对。"
+        "所有输出必须使用中文，包括 ai_reason、strengths、weaknesses、common_issues、"
+        "teaching_suggestions 等全部文字内容。"
         "以 JSON 格式返回，包含字段：\n"
         "- suspicious_pairs: 可疑对列表，每项含 submission_a、student_a、submission_b、student_b、"
-        "similarity、risk_level（high/medium/low）、similar_segments（列表）、ai_reason\n"
+        "similarity、risk_level（high/medium/low）、similar_segments（列表）、ai_reason（中文）\n"
         "- comparison_details: 每份作业的比对详情列表，每项含 submission_id、student_name、"
-        "strengths（列表）、weaknesses（列表）、dimension_scores（字典）\n"
-        "- common_issues: 共同问题列表\n"
-        "- teaching_suggestions: 教学建议列表"
+        "strengths（中文列表）、weaknesses（中文列表）、dimension_scores（字典）\n"
+        "- common_issues: 中文共同问题列表\n"
+        "- teaching_suggestions: 中文教学建议列表"
     )
     user = (
         f"比对维度：{dims}\n\n"
