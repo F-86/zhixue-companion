@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.analysis_report import AnalysisReport
 from app.models.assignment import Assignment
+from app.models.file import File as FileModel
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.services import file_processor_client, minimax_client
@@ -32,7 +33,9 @@ def analyze(
             sf_records = db.query(SubmissionFile).filter(
                 SubmissionFile.submission_id == sub_id,
             ).all()
-            extracted_parts = [sf.extracted_text or "" for sf in sf_records if sf.extracted_text]
+            file_ids = [sf.file_id for sf in sf_records]
+            file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
+            extracted_parts = [f.extracted_text or "" for f in file_records if f.extracted_text]
             text = "\n\n".join(extracted_parts)
         student = db.get(User, sub.student_id)
         submissions_data.append({

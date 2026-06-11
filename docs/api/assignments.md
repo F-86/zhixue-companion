@@ -10,7 +10,7 @@
 >
 > 权限：任意已登录用户（学生或教师）。
 
-文件上传已从作业发布/提交接口中独立出来，前端应**先将文件通过本接口上传到文件服务器**，拿到返回的 `file_url` 后再调用作业发布或提交接口。
+文件上传已从作业发布/提交接口中独立出来，前端应**先将文件通过本接口上传**，拿到返回的 `file_id` 后再调用作业发布或提交接口。
 
 ### 0.1 上传单个文件
 
@@ -18,7 +18,7 @@
 POST /api/upload
 ```
 
-**功能说明：** 每次调用上传一个文件，返回文件服务器上的可访问路径 `file_url`。多个文件需多次调用。
+**功能说明：** 每次调用上传一个文件，写入 `files` 通用文件表，返回 `file_id` 和可访问路径 `file_url`。多个文件需多次调用。
 
 **请求格式（multipart/form-data）：**
 
@@ -32,6 +32,7 @@ POST /api/upload
 {
   "success": true,
   "data": {
+    "file_id": "f_abc123",
     "file_url": "/files/a1b2c3d4_实验报告.pdf",
     "file_name": "实验报告.pdf",
     "file_size": 204800,
@@ -45,7 +46,8 @@ POST /api/upload
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| file_url | string | 文件在文件服务器上的访问路径，用于后续接口（如作业发布/提交） |
+| file_id | string | 文件在 `files` 表中的唯一 ID，用于后续接口（作业发布/提交传此值） |
+| file_url | string | 文件在文件服务器上的访问路径，前端可直接用于下载/预览 |
 | file_name | string | 原始文件名 |
 | file_size | number | 文件大小（字节） |
 | extracted_text | string \| null | C++ 文件处理服务提取的文本内容，不可解析时返回 null |
@@ -134,7 +136,7 @@ GET /api/student/assignments/{assignment_id}
 POST /api/student/assignments/{assignment_id}/submit
 ```
 
-**功能说明：** 学生提交作业，支持文本和文件两种模式。**文件提交时需先将文件通过 `POST /api/upload` 上传，获得 `file_url` 后再调用本接口。**
+**功能说明：** 学生提交作业，支持文本和文件两种模式。**文件提交时需先将文件通过 `POST /api/upload` 上传，获得 `file_id` 后再调用本接口。**
 
 **请求格式（multipart/form-data）：**
 
@@ -142,7 +144,7 @@ POST /api/student/assignments/{assignment_id}/submit
 | --- | --- | --- | --- |
 | submit_type | string | 是 | `text`（文本）或 `file`（文件） |
 | content | string | text 时必填 | 作业正文 |
-| file_urls | string | file 时必填 | 已上传文件的 URL，多个以逗号分隔（来自 `/api/upload` 返回的 `file_url`） |
+| file_ids | string | file 时必填 | 已上传文件的 ID，多个以逗号分隔（来自 `/api/upload` 返回的 `file_id`） |
 
 **示例 — 文本提交：**
 
@@ -155,7 +157,7 @@ content=进程是程序执行的实体...
 
 ```text
 submit_type=file
-file_urls=/files/a1b2c3d4_报告.pdf,/files/e5f6g7h8_代码.zip
+file_ids=f_abc123,f_def456
 ```
 
 **响应示例：**
@@ -231,7 +233,7 @@ GET /api/student/assignments/{assignment_id}/my-submission
 POST /api/teacher/assignments
 ```
 
-**功能说明：** 教师发布新作业。如有附件，需先将文件通过 `POST /api/upload` 上传，得到 `file_url` 后再传入 `attachment_url`。
+**功能说明：** 教师发布新作业。如有附件，需先将文件通过 `POST /api/upload` 上传，得到 `file_id` 后再传入 `attachment_file_id`。
 
 **请求格式（multipart/form-data）：**
 
@@ -243,7 +245,7 @@ POST /api/teacher/assignments
 | due_at | string | 是 | 截止时间（ISO 8601 格式） |
 | reference_answer | string | 否 | 参考答案（供 AI 批改参考） |
 | rubric | string | 否 | 评分标准（供 AI 批改参考） |
-| attachment_url | string | 否 | 附件在文件服务器上的路径（来自 `/api/upload` 返回的 `file_url`） |
+| attachment_file_id | string | 否 | 附件在 `files` 表中的 ID（来自 `/api/upload` 返回的 `file_id`） |
 
 **响应示例：**
 

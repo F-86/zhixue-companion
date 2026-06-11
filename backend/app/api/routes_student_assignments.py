@@ -34,13 +34,13 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    file_urls: str | None = Form(None),
+    file_ids: str | None = Form(None),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
     """
-    提交作业。文本提交时传 content；文件提交时传 file_urls（多个 URL 以逗号分隔）。
-    file_urls 中的每个 URL 应来自 /api/upload 接口返回的 file_url。
+    提交作业。文本提交时传 content；文件提交时传 file_ids（多个 ID 以逗号分隔）。
+    file_ids 中的每个 ID 应来自 /api/upload 接口返回的 file_id。
     """
     if submit_type == "text":
         if not content:
@@ -48,14 +48,14 @@ async def submit_assignment(
             raise HTTPException(status_code=400, detail="文本提交时 content 不能为空")
         sub = svc.submit_text(assignment_id, current_user.id, content, db)
     else:
-        if not file_urls:
+        if not file_ids:
             from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="文件提交时 file_urls 不能为空")
-        urls = [u.strip() for u in file_urls.split(",") if u.strip()]
-        if not urls:
+            raise HTTPException(status_code=400, detail="文件提交时 file_ids 不能为空")
+        ids = [fid.strip() for fid in file_ids.split(",") if fid.strip()]
+        if not ids:
             from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="file_urls 格式不合法")
-        sub = svc.submit_file(assignment_id, current_user.id, urls, db)
+            raise HTTPException(status_code=400, detail="file_ids 格式不合法")
+        sub = svc.submit_file(assignment_id, current_user.id, ids, db)
 
     return _ok({
         "id": sub.id,

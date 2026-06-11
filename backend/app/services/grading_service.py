@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.assignment import Assignment
+from app.models.file import File as FileModel
 from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
@@ -31,16 +32,18 @@ def grade_submissions(
             sf_records = db.query(SubmissionFile).filter(
                 SubmissionFile.submission_id == sub.id,
             ).all()
+            file_ids = [sf.file_id for sf in sf_records]
+            file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
             # 优先用已提取的文本，否则实时提取
             extracted_parts = []
-            for sf in sf_records:
-                text = sf.extracted_text
+            for f in file_records:
+                text = f.extracted_text
                 if not text:
                     try:
                         from app.services.file_processor_client import extract_text
-                        text = extract_text(sf.file_path) or ""
+                        text = extract_text(f.file_path) or ""
                         if text:
-                            sf.extracted_text = text
+                            f.extracted_text = text
                             db.commit()
                     except Exception:
                         pass

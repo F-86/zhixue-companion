@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -29,6 +29,8 @@ class Assignment(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     reference_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     rubric: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachment_file_id: Mapped[str | None] = mapped_column(String, ForeignKey("files.id"), nullable=True)
+    # 以下两个字段仅作缓存/降级，通过 attachment_file_id 从 files 表可还原
     attachment_path: Mapped[str | None] = mapped_column(String, nullable=True)
     attachment_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

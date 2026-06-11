@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
+from app.models.file import File as FileModel
+from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.schemas.teacher_assignment import AssignmentUpdateRequest
-from app.services import file_processor_client
-from app.models.grade import AIGradingResult
 
 
 def publish_assignment(
@@ -21,21 +21,18 @@ def publish_assignment(
     due_at,
     reference_answer: str | None,
     rubric: str | None,
-    attachment_url: str | None,
+    attachment_file_id: str | None,
     db: Session,
 ) -> Assignment:
     attachment_path = None
     attachment_text = None
 
-    if attachment_url:
-        # 从 file_url（如 /files/uuid_name.pdf）解析出物理路径
-        basename = os.path.basename(attachment_url)
-        save_path = os.path.join(settings.upload_dir, basename)
-        if not os.path.isfile(save_path):
+    if attachment_file_id:
+        file_record = db.get(FileModel, attachment_file_id)
+        if not file_record:
             raise HTTPException(status_code=400, detail="附件文件不存在，请先通过 /api/upload 上传")
-        attachment_path = save_path
-        # C++ pybind11 解析题目文本
-        attachment_text = file_processor_client.extract_text(save_path)
+        attachment_path = file_record.file_path
+        attachment_text = file_record.extracted_text
 
     a = Assignment(
         teacher_id=teacher_id,
@@ -44,6 +41,7 @@ def publish_assignment(
         description=description,
         reference_answer=reference_answer,
         rubric=rubric,
+        attachment_file_id=attachment_file_id,
         attachment_path=attachment_path,
         attachment_text=attachment_text,
         due_at=due_at,
@@ -68,7 +66,7 @@ def list_assignments(teacher_id: str, course: str | None, status: str | None, db
         items.append({
             "id": a.id, "title": a.title, "course": a.course,
             "due_at": a.due_at, "status": a.status,
-            "submission_count": sub_count, "total_students": 0,  # 可扩展班级人数
+            "submission_count": sub_count, "total_students": 0,
         })
     return {"items": items, "total": len(items)}
 
@@ -76,7 +74,7 @@ def list_assignments(teacher_id: str, course: str | None, status: str | None, db
 def get_assignment(assignment_id: str, teacher_id: str, db: Session) -> dict:
     a = _get_own_assignment(assignment_id, teacher_id, db)
     sub_count = db.query(Submission).filter(Submission.assignment_id == a.id).count()
-    attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
+    attachment_url = _file_url(a.attachment_path) if a.attachment_path else None
     return {
         "id": a.id, "title": a.title, "course": a.course,
         "description": a.description, "reference_answer": a.reference_answer,
@@ -110,14 +108,28 @@ def list_submissions(assignment_id: str, teacher_id: str, db: Session) -> dict:
     for s in subs:
         student = db.get(User, s.student_id)
         grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == s.id).first()
-        sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == s.id).all()
-        file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+
+        # 通过关联表拿到所有文件
+        sf_records = (
+            db.query(SubmissionFile)
+            .filter(SubmissionFile.submission_id == s.id)
+            .all()
+        )
+        file_ids = [sf.file_id for sf in sf_records]
+        file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
+        file_map = {f.id: f for f in file_records}
+
+        file_urls = [_file_url(file_map[fid].file_path) for fid in file_ids if fid in file_map]
         files_detail = [{
-            "filename": f.filename,
-            "file_url": f"/files/{os.path.basename(f.file_path)}",
-            "file_size": f.file_size,
-        } for f in sf_records]
-        extracted_text = "\n".join(f.extracted_text for f in sf_records if f.extracted_text) or None
+            "filename": file_map[fid].filename,
+            "file_url": _file_url(file_map[fid].file_path),
+            "file_size": file_map[fid].file_size,
+        } for fid in file_ids if fid in file_map]
+        extracted_text = "\n".join(
+            file_map[fid].extracted_text for fid in file_ids
+            if fid in file_map and file_map[fid].extracted_text
+        ) or None
+
         items.append({
             "id": s.id, "student_id": s.student_id,
             "student_name": student.name if student else "未知",
@@ -132,6 +144,10 @@ def list_submissions(assignment_id: str, teacher_id: str, db: Session) -> dict:
             "confirmed": grade.confirmed if grade else False,
         })
     return {"assignment_id": assignment_id, "items": items, "total": len(items)}
+
+
+def _file_url(file_path: str) -> str:
+    return f"/files/{os.path.basename(file_path)}"
 
 
 def _get_own_assignment(assignment_id: str, teacher_id: str, db: Session) -> Assignment:

@@ -16,6 +16,7 @@ import app.models.discussion  # noqa: F401
 import app.models.question  # noqa: F401
 import app.models.quiz  # noqa: F401
 import app.models.plan_progress  # noqa: F401
+import app.models.file  # noqa: F401
 
 
 def init_db() -> None:

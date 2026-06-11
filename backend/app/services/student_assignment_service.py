@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
+from app.models.file import File as FileModel
 from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
-from app.services import file_processor_client
 
 
 def list_assignments(student_id: str, course: str | None, status: str | None, db: Session) -> dict:
@@ -19,7 +19,6 @@ def list_assignments(student_id: str, course: str | None, status: str | None, db
         q = q.filter(Assignment.status == status)
     assignments = q.order_by(Assignment.due_at).all()
 
-    # 查询该学生已提交的作业 ID 集合
     submitted_ids = {
         s.assignment_id
         for s in db.query(Submission.assignment_id)
@@ -49,7 +48,7 @@ def get_assignment_detail(assignment_id: str, student_id: str, db: Session) -> d
         .filter(Submission.assignment_id == assignment_id, Submission.student_id == student_id)
         .first()
     )
-    attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
+    attachment_url = _file_url(a.attachment_path) if a.attachment_path else None
     return {
         "id": a.id,
         "title": a.title,
@@ -76,7 +75,7 @@ def submit_text(assignment_id: str, student_id: str, content: str, db: Session) 
     return sub
 
 
-def submit_file(assignment_id: str, student_id: str, file_urls: list[str], db: Session) -> Submission:
+def submit_file(assignment_id: str, student_id: str, file_ids: list[str], db: Session) -> Submission:
     _check_can_submit(assignment_id, student_id, db)
 
     sub = Submission(
@@ -87,32 +86,16 @@ def submit_file(assignment_id: str, student_id: str, file_urls: list[str], db: S
     db.add(sub)
     db.flush()  # 获取 sub.id
 
-    for url in file_urls:
-        basename = os.path.basename(url)
-        save_path = os.path.join(settings.upload_dir, basename)
-        if not os.path.isfile(save_path):
-            raise HTTPException(status_code=400, detail=f"文件不存在：{url}，请先通过 /api/upload 上传")
+    for file_id in file_ids:
+        file_record = db.get(FileModel, file_id)
+        if not file_record:
+            raise HTTPException(status_code=400, detail=f"文件不存在：{file_id}，请先通过 /api/upload 上传")
 
-        file_size = os.path.getsize(save_path)
-        if file_size > settings.max_upload_bytes:
-            raise HTTPException(status_code=400, detail="文件超过 10 MB 限制")
-
-        # 从存储路径还原原始文件名（去掉 UUID 前缀）
-        stored_name = basename
-        original_name = stored_name.split("_", 1)[1] if "_" in stored_name else stored_name
-
-        # C++ pybind11 提取文本
-        try:
-            extracted = file_processor_client.extract_text(save_path)
-        except Exception:
-            extracted = None
         db.add(SubmissionFile(
             submission_id=sub.id,
-            filename=original_name,
-            file_path=save_path,
-            file_size=file_size,
-            extracted_text=extracted,
+            file_id=file_id,
         ))
+
     db.commit()
     db.refresh(sub)
     return sub
@@ -126,13 +109,23 @@ def get_my_submission(assignment_id: str, student_id: str, db: Session) -> dict:
     )
     if not sub:
         raise HTTPException(status_code=404, detail="尚未提交")
-    sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == sub.id).all()
-    file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+
+    sf_records = (
+        db.query(SubmissionFile)
+        .filter(SubmissionFile.submission_id == sub.id)
+        .all()
+    )
+    file_ids = [sf.file_id for sf in sf_records]
+    file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
+    file_map = {f.id: f for f in file_records}
+
+    file_urls = [_file_url(file_map[fid].file_path) for fid in file_ids if fid in file_map]
     files_detail = [{
-        "filename": f.filename,
-        "file_url": f"/files/{os.path.basename(f.file_path)}",
-        "file_size": f.file_size,
-    } for f in sf_records]
+        "filename": file_map[fid].filename,
+        "file_url": _file_url(file_map[fid].file_path),
+        "file_size": file_map[fid].file_size,
+    } for fid in file_ids if fid in file_map]
+
     grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == sub.id).first()
     return {
         "id": sub.id,
@@ -154,6 +147,12 @@ def get_my_submission(assignment_id: str, student_id: str, db: Session) -> dict:
 
 
 # ── 内部工具 ──────────────────────────────────────────────────
+
+def _file_url(file_path: str) -> str:
+    if not file_path:
+        return None
+    return f"/files/{os.path.basename(file_path)}"
+
 
 def _check_can_submit(assignment_id: str, student_id: str, db: Session) -> None:
     a = db.get(Assignment, assignment_id)

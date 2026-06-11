@@ -1,10 +1,13 @@
-"""独立文件上传接口 —— 每文件一次 upload，返回可访问路径"""
+"""独立文件上传接口 —— 每文件一次 upload，写入 files 表并返回 file_id + 可访问 URL"""
 import os
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.db.session import get_db
+from app.models.file import File as FileModel
 from app.services import file_processor_client
 from app.services.auth_service import get_current_user
 
@@ -19,8 +22,9 @@ def _ok(data, message="ok"):
 async def upload_file(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """上传单个文件到文件服务器，返回后续可访问的 file_url"""
+    """上传单个文件到文件服务器，写入 files 表，返回 file_id + file_url"""
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
@@ -36,7 +40,7 @@ async def upload_file(
     if len(content) > settings.max_upload_bytes:
         raise HTTPException(status_code=400, detail=f"文件超过 {settings.max_upload_bytes // 1024 // 1024} MB 限制")
 
-    # 用 UUID 生成唯一存储名，保留原始扩展名
+    # 用 UUID 生成唯一存储名
     unique_name = f"{uuid.uuid4().hex}_{file.filename}"
     save_path = os.path.join(settings.upload_dir, unique_name)
 
@@ -46,8 +50,21 @@ async def upload_file(
     # 提取文本
     extracted_text = file_processor_client.extract_text(save_path)
 
+    # 写入 files 表
+    record = FileModel(
+        filename=file.filename,
+        file_path=save_path,
+        file_size=len(content),
+        extracted_text=extracted_text,
+        uploaded_by=current_user.id,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
     file_url = f"/files/{unique_name}"
     return _ok({
+        "file_id": record.id,
         "file_url": file_url,
         "file_name": file.filename,
         "file_size": len(content),
