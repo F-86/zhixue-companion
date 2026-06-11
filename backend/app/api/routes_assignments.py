@@ -2,7 +2,7 @@
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -154,11 +154,12 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    file: list[UploadFile] = File(default=[]),
+    file_ids: str | None = Form(None),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
-    sub = await svc.submit_assignment(course_id, assignment_id, current_user.id, submit_type, content, file, db)
+    ids = [fid.strip() for fid in file_ids.split(",") if fid.strip()] if file_ids else []
+    sub = svc.submit_assignment(course_id, assignment_id, current_user.id, submit_type, content, ids, db)
     return _ok({
         "id": sub.id, "assignment_id": assignment_id,
         "student_id": current_user.id, "submit_type": sub.submit_type,

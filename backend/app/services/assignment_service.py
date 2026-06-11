@@ -2,12 +2,13 @@
 import os
 from datetime import datetime
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
 from app.models.course import CourseEnrollment
+from app.models.file import File as FileModel
 from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
@@ -32,36 +33,28 @@ def _require_assignment(assignment_id: str, course_id: str, db: Session) -> Assi
 
 # ── 教师端：发布作业 ──────────────────────────────────────────
 
-async def publish_assignment(
+def publish_assignment(
     course_id: str, section_id: str, teacher_id: str,
     title: str, description: str, due_at: datetime,
     reference_answer: str | None, rubric: str | None,
-    full_score: float, attachment: UploadFile | None, db: Session,
+    full_score: float, attachment_file_id: str | None, db: Session,
 ) -> Assignment:
     _require_teacher_course(course_id, teacher_id, db)
     from app.models.course import Course
     course = db.get(Course, course_id)
     attachment_path = None
     attachment_text = None
-    if attachment:
-        ext = attachment.filename.rsplit(".", 1)[-1].lower() if "." in attachment.filename else "bin"
-        import uuid
-        fname = f"assignment_{uuid.uuid4()}.{ext}"
-        fpath = os.path.join(settings.upload_dir, fname)
-        content = await attachment.read()
-        with open(fpath, "wb") as f:
-            f.write(content)
-        attachment_path = fpath
-        # C++ 文件处理提取文本
-        try:
-            from app.services.file_processor_client import extract_text
-            attachment_text = extract_text(fpath)
-        except Exception:
-            pass
+    if attachment_file_id:
+        file_record = db.get(FileModel, attachment_file_id)
+        if not file_record:
+            raise HTTPException(status_code=400, detail="附件文件不存在，请先通过 /api/upload 上传")
+        attachment_path = file_record.file_path
+        attachment_text = file_record.extracted_text
     a = Assignment(
         teacher_id=teacher_id, course_id=course_id, section_id=section_id,
         title=title, course=course.name if course else "", full_score=full_score,
         description=description, reference_answer=reference_answer, rubric=rubric,
+        attachment_file_id=attachment_file_id,
         attachment_path=attachment_path, attachment_text=attachment_text, due_at=due_at,
     )
     db.add(a)
@@ -143,15 +136,21 @@ def list_submissions(course_id: str, assignment_id: str, teacher_id: str, db: Se
     for s in subs:
         student = db.get(User, s.student_id)
         grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == s.id).first()
-        # 查询提交文件
+        # 查询提交文件（通过关联表 → files 表）
         sfiles = db.query(SubmissionFile).filter(SubmissionFile.submission_id == s.id).all()
-        file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sfiles if f.file_path]
+        file_ids = [sf.file_id for sf in sfiles]
+        file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
+        file_map = {f.id: f for f in file_records}
+        file_urls = [_file_url(file_map[fid].file_path) for fid in file_ids if fid in file_map]
         files_detail = [{
-            "filename": f.filename,
-            "file_url": f"/files/{os.path.basename(f.file_path)}",
-            "file_size": f.file_size,
-        } for f in sfiles]
-        extracted_text = "\n".join(f.extracted_text for f in sfiles if f.extracted_text) or None
+            "filename": file_map[fid].filename,
+            "file_url": _file_url(file_map[fid].file_path),
+            "file_size": file_map[fid].file_size,
+        } for fid in file_ids if fid in file_map]
+        extracted_text = "\n".join(
+            file_map[fid].extracted_text for fid in file_ids
+            if fid in file_map and file_map[fid].extracted_text
+        ) or None
         items.append({
             "id": s.id, "student_id": s.student_id,
             "student_name": student.name if student else "",
@@ -228,9 +227,9 @@ def get_student_assignment(course_id: str, assignment_id: str, student_id: str, 
     }
 
 
-async def submit_assignment(
+def submit_assignment(
     course_id: str, assignment_id: str, student_id: str,
-    submit_type: str, content: str | None, file: list[UploadFile], db: Session,
+    submit_type: str, content: str | None, file_ids: list[str], db: Session,
 ) -> Submission:
     _require_enrollment(course_id, student_id, db)
     a = _require_assignment(assignment_id, course_id, db)
@@ -250,27 +249,14 @@ async def submit_assignment(
     db.add(sub)
     db.flush()
 
-    if submit_type == "file" and file:
-        for f in file:
-            ext = f.filename.rsplit(".", 1)[-1].lower() if "." in (f.filename or "") else "bin"
-            import uuid
-            fname = f"submission_{uuid.uuid4()}.{ext}"
-            fpath = os.path.join(settings.upload_dir, fname)
-            data = await f.read()
-            with open(fpath, "wb") as fw:
-                fw.write(data)
-            extracted_text = None
-            try:
-                from app.services.file_processor_client import extract_text
-                extracted_text = extract_text(fpath)
-            except Exception:
-                pass
+    if submit_type == "file" and file_ids:
+        for file_id in file_ids:
+            file_record = db.get(FileModel, file_id)
+            if not file_record:
+                raise HTTPException(status_code=400, detail=f"文件不存在：{file_id}，请先通过 /api/upload 上传")
             db.add(SubmissionFile(
                 submission_id=sub.id,
-                filename=f.filename or "unknown",
-                file_path=fpath,
-                file_size=len(data),
-                extracted_text=extracted_text,
+                file_id=file_id,
             ))
 
     db.commit()
@@ -289,12 +275,15 @@ def get_my_submission(course_id: str, assignment_id: str, student_id: str, db: S
         raise HTTPException(status_code=404, detail="尚未提交该作业")
     grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == sub.id).first()
     sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == sub.id).all()
-    file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+    file_ids = [sf.file_id for sf in sf_records]
+    file_records = db.query(FileModel).filter(FileModel.id.in_(file_ids)).all() if file_ids else []
+    file_map = {f.id: f for f in file_records}
+    file_urls = [_file_url(file_map[fid].file_path) for fid in file_ids if fid in file_map]
     files_detail = [{
-        "filename": f.filename,
-        "file_url": f"/files/{os.path.basename(f.file_path)}",
-        "file_size": f.file_size,
-    } for f in sf_records]
+        "filename": file_map[fid].filename,
+        "file_url": _file_url(file_map[fid].file_path),
+        "file_size": file_map[fid].file_size,
+    } for fid in file_ids if fid in file_map]
     return {
         "id": sub.id, "assignment_id": assignment_id,
         "submit_type": sub.submit_type,
@@ -310,3 +299,9 @@ def get_my_submission(course_id: str, assignment_id: str, student_id: str, db: S
         "teacher_comment": grade.teacher_comment if grade else None,
         "graded_at": grade.created_at if grade else None,
     }
+
+
+def _file_url(file_path: str) -> str:
+    if not file_path:
+        return None
+    return f"/files/{os.path.basename(file_path)}"

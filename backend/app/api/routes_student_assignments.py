@@ -47,22 +47,24 @@ async def submit_assignment(
 ):
     """
     提交作业。文本提交时传 content；文件提交时传 file_ids（多个 ID 以逗号分隔）。
+    可同时传 content 和 file_ids，两者都会被记录。
     file_ids 中的每个 ID 应来自 /api/upload 接口返回的 file_id。
     """
-    if submit_type == "text":
-        if not content:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="文本提交时 content 不能为空")
-        sub = svc.submit_text(assignment_id, current_user.id, content, db)
-    else:
-        if not file_ids:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="文件提交时 file_ids 不能为空")
+    has_content = bool(content)
+    has_files = bool(file_ids)
+
+    if not has_content and not has_files:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="content 和 file_ids 至少提供一个")
+
+    if has_files:
         ids = [fid.strip() for fid in file_ids.split(",") if fid.strip()]
         if not ids:
             from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="file_ids 格式不合法")
-        sub = svc.submit_file(assignment_id, current_user.id, ids, db)
+        sub = svc.submit_file(assignment_id, current_user.id, ids, db, content)
+    else:
+        sub = svc.submit_text(assignment_id, current_user.id, content, db)
 
     return _ok({
         "id": sub.id,

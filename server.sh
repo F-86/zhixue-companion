@@ -72,6 +72,7 @@ cmd_start() {
         uvicorn app.main:app \
         --host "${HOST}" \
         --port "${PORT}" \
+        --no-access-log \
         >> "${LOG_FILE}" 2>&1 &
 
     local new_pid=$!

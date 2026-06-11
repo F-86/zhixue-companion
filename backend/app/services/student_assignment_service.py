@@ -1,8 +1,11 @@
 """学生端作业服务：查看作业、提交作业"""
+import logging
 import os
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.models.assignment import Assignment
@@ -75,16 +78,20 @@ def submit_text(assignment_id: str, student_id: str, content: str, db: Session) 
     return sub
 
 
-def submit_file(assignment_id: str, student_id: str, file_ids: list[str], db: Session) -> Submission:
+def submit_file(assignment_id: str, student_id: str, file_ids: list[str], db: Session, content: str | None = None) -> Submission:
     _check_can_submit(assignment_id, student_id, db)
 
+    actual_type = "mixed" if content else "file"
     sub = Submission(
         assignment_id=assignment_id,
         student_id=student_id,
-        submit_type="file",
+        submit_type=actual_type,
+        content=content,
     )
     db.add(sub)
     db.flush()  # 获取 sub.id
+
+    logger.info("submit_file: assignment_id=%s, student_id=%s, file_ids=%s", assignment_id, student_id, file_ids)
 
     for file_id in file_ids:
         file_record = db.get(FileModel, file_id)
