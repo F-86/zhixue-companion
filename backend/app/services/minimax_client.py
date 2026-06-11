@@ -169,11 +169,12 @@ def _parse_json(text: str) -> dict | list:
 
 # ── 公开方法 ──────────────────────────────────────────────────
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
+def embed_texts(texts: list[str], text_type: str = "db") -> list[list[float]]:
     """
     调用 MiniMax Embedding API，批量将文本转为向量。
     返回与 texts 等长的向量列表，每个向量维度为 1536。
     单次最多 _EMBED_BATCH_SIZE 条，自动分批处理。
+    text_type: "db" 用于文档索引，"query" 用于检索查询。
     """
     if not texts:
         return []
@@ -183,17 +184,25 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         payload = {
             "model": settings.minimax_embedding_model,
             "input": batch,
-            "type": "query",  # query 模式，适用于检索场景
+            "type": text_type,
         }
         try:
             resp = _get_client().post(_EMBED_URL, headers=_headers(), json=payload)
             resp.raise_for_status()
             data = resp.json()
-            # MiniMax 返回格式：{"data": [{"embedding": [...], "index": 0}, ...]}
-            sorted_items = sorted(data["data"], key=lambda x: x["index"])
-            all_embeddings.extend(item["embedding"] for item in sorted_items)
+            # 兼容多种 MiniMax Embedding 返回格式：
+            # 格式 A（OpenAI-like）：{"data": [{"embedding": [...], "index": 0}, ...]}
+            # 格式 B：{"vectors": [[...], ...]}
+            if "data" in data:
+                sorted_items = sorted(data["data"], key=lambda x: x["index"])
+                all_embeddings.extend(item["embedding"] for item in sorted_items)
+            elif "vectors" in data:
+                all_embeddings.extend(data["vectors"])
+            else:
+                logger.error("MiniMax Embedding 返回格式未知，完整响应: %s", json.dumps(data, ensure_ascii=False)[:500])
+                raise RuntimeError("Embedding 返回格式未知，缺少 'data' 或 'vectors' 字段")
         except httpx.HTTPStatusError as e:
-            logger.error("MiniMax Embedding HTTP 错误: %s", e)
+            logger.error("MiniMax Embedding HTTP 错误 [%d]: %s", e.response.status_code, e.response.text[:300])
             raise RuntimeError(f"Embedding 服务异常: {e.response.status_code}") from e
         except Exception as e:
             logger.error("MiniMax Embedding 调用失败: %s", e)
@@ -202,8 +211,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 
 def embed_query(text: str) -> list[float]:
-    """对单条查询文本向量化，返回 1536 维向量。"""
-    return embed_texts([text])[0]
+    """对单条查询文本向量化（type=query），返回 1536 维向量。"""
+    return embed_texts([text], text_type="query")[0]
 
 def answer_question(question: str, course: str | None, history: list[dict], context: str = "") -> dict:
     """
