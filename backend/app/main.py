@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -5,6 +6,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+# force=True 强制覆盖 uvicorn 的日志配置，确保所有 logger.info 输出到 stderr
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.db.init_db import init_db
@@ -24,6 +33,7 @@ async def lifespan(app: FastAPI):
     init_vector_store()
     # 预热 MiniMax HTTP 连接池
     minimax_client._get_client()
+    logger.info("智学伴侣 API 已启动")
     yield
     # 关闭时释放 HTTP 连接池
     minimax_client.close()
@@ -48,7 +58,6 @@ from app.api import (  # noqa: E402
     routes_auth,
     routes_courses,
     routes_sections,
-    routes_assignments,
     routes_announcements,
     routes_discussions,
     routes_questions,
@@ -58,12 +67,13 @@ from app.api import (  # noqa: E402
     routes_learning_plans,
     routes_quizzes,
     routes_upload,
+    routes_student_assignments,
+    routes_teacher_assignments,
 )
 
 app.include_router(routes_auth.router, prefix="/api")
 app.include_router(routes_courses.router, prefix="/api")
 app.include_router(routes_sections.router, prefix="/api")
-app.include_router(routes_assignments.router, prefix="/api")
 app.include_router(routes_announcements.router, prefix="/api")
 app.include_router(routes_discussions.router, prefix="/api")
 app.include_router(routes_questions.router, prefix="/api")
@@ -73,6 +83,8 @@ app.include_router(routes_summaries.router, prefix="/api")
 app.include_router(routes_learning_plans.router, prefix="/api")
 app.include_router(routes_quizzes.router, prefix="/api")
 app.include_router(routes_upload.router, prefix="/api")
+app.include_router(routes_student_assignments.router, prefix="/api")
+app.include_router(routes_teacher_assignments.router, prefix="/api")
 
 
 # ── 健康检查 ──────────────────────────────────────────────────

@@ -23,8 +23,9 @@ def _ok(data, message="ok"):
 
 # ── 发布与管理作业 ────────────────────────────────────────────
 
-@router.post("/teacher/assignments", status_code=201)
+@router.post("/teacher/courses/{course_id}/assignments", status_code=201)
 async def publish_assignment(
+    course_id: str,
     title: str = Form(...),
     course: str = Form(...),
     description: str = Form(...),
@@ -53,8 +54,9 @@ async def publish_assignment(
     }, "published")
 
 
-@router.get("/teacher/assignments")
+@router.get("/teacher/courses/{course_id}/assignments")
 def list_assignments(
+    course_id: str,
     course: str | None = None,
     status: str | None = None,
     current_user=Depends(require_teacher),
@@ -63,13 +65,19 @@ def list_assignments(
     return _ok(svc.list_assignments(current_user.id, course, status, db))
 
 
-@router.get("/teacher/assignments/{assignment_id}")
-def get_assignment(assignment_id: str, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.get("/teacher/courses/{course_id}/assignments/{assignment_id}")
+def get_assignment(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     return _ok(svc.get_assignment(assignment_id, current_user.id, db))
 
 
-@router.patch("/teacher/assignments/{assignment_id}")
+@router.patch("/teacher/courses/{course_id}/assignments/{assignment_id}")
 def update_assignment(
+    course_id: str,
     assignment_id: str,
     req: AssignmentUpdateRequest,
     current_user=Depends(require_teacher),
@@ -79,40 +87,72 @@ def update_assignment(
     return _ok({"id": a.id, "description": a.description, "due_at": a.due_at, "updated_at": a.updated_at}, "updated")
 
 
-@router.post("/teacher/assignments/{assignment_id}/close")
-def close_assignment(assignment_id: str, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.post("/teacher/courses/{course_id}/assignments/{assignment_id}/close")
+def close_assignment(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     a = svc.close_assignment(assignment_id, current_user.id, db)
     return _ok({"id": a.id, "status": a.status}, "closed")
 
 
-@router.get("/teacher/assignments/{assignment_id}/submissions")
-def list_submissions(assignment_id: str, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.get("/teacher/courses/{course_id}/assignments/{assignment_id}/submissions")
+def list_submissions(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     return _ok(svc.list_submissions(assignment_id, current_user.id, db))
 
 
 # ── AI 批改 ───────────────────────────────────────────────────
 
-@router.post("/teacher/assignments/{assignment_id}/grade")
-def grade(assignment_id: str, req: GradeRequest, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.post("/teacher/courses/{course_id}/assignments/{assignment_id}/grade")
+def grade(
+    course_id: str,
+    assignment_id: str,
+    req: GradeRequest,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     result = grading_service.grade_submissions(assignment_id, req.submission_ids, current_user.id, db)
     return _ok(result, "graded")
 
 
 @router.patch("/teacher/submissions/{submission_id}/grade")
-def confirm_grade(submission_id: str, req: GradeConfirmRequest, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+def confirm_grade(
+    submission_id: str,
+    req: GradeConfirmRequest,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     grade = grading_service.confirm_grade(submission_id, req.final_score, req.confirmed, req.teacher_comment, db)
     return _ok({"submission_id": submission_id, "final_score": grade.final_score, "confirmed": grade.confirmed}, "updated")
 
 
-@router.get("/teacher/assignments/{assignment_id}/grading-report")
-def grading_report(assignment_id: str, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.get("/teacher/courses/{course_id}/assignments/{assignment_id}/grading-report")
+def grading_report(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     return _ok(grading_service.get_grading_report(assignment_id, current_user.id, db))
 
 
 # ── 查重与比对 ────────────────────────────────────────────────
 
-@router.post("/teacher/assignments/{assignment_id}/analyze")
-def analyze(assignment_id: str, req: AnalyzeRequest, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.post("/teacher/courses/{course_id}/assignments/{assignment_id}/analyze")
+def analyze(
+    course_id: str,
+    assignment_id: str,
+    req: AnalyzeRequest,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     report = analyze_service.analyze(
         assignment_id, req.submission_ids, current_user.id,
         req.similarity_threshold, req.compare_dimensions, db,
@@ -128,8 +168,13 @@ def analyze(assignment_id: str, req: AnalyzeRequest, current_user=Depends(requir
     }, "analyzed")
 
 
-@router.get("/teacher/assignments/{assignment_id}/analyze-report")
-def get_analyze_report(assignment_id: str, current_user=Depends(require_teacher), db: Session = Depends(get_db)):
+@router.get("/teacher/courses/{course_id}/assignments/{assignment_id}/analyze-report")
+def get_analyze_report(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
     report = analyze_service.get_report(assignment_id, current_user.id, db)
     return _ok({
         "report_id": report.id,

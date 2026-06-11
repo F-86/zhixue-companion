@@ -12,8 +12,9 @@ def _ok(data, message="ok"):
     return {"success": True, "data": data, "message": message}
 
 
-@router.get("/student/assignments")
+@router.get("/student/courses/{course_id}/assignments")
 def list_assignments(
+    course_id: str,
     course: str | None = None,
     status: str | None = None,
     current_user=Depends(require_student),
@@ -23,14 +24,20 @@ def list_assignments(
     return _ok(result)
 
 
-@router.get("/student/assignments/{assignment_id}")
-def get_assignment(assignment_id: str, current_user=Depends(require_student), db: Session = Depends(get_db)):
+@router.get("/student/courses/{course_id}/assignments/{assignment_id}")
+def get_assignment(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_student),
+    db: Session = Depends(get_db),
+):
     result = svc.get_assignment_detail(assignment_id, current_user.id, db)
     return _ok(result)
 
 
-@router.post("/student/assignments/{assignment_id}/submit", status_code=201)
+@router.post("/student/courses/{course_id}/assignments/{assignment_id}/submit", status_code=201)
 async def submit_assignment(
+    course_id: str,
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
@@ -67,6 +74,11 @@ async def submit_assignment(
     }, "submitted")
 
 
-@router.get("/student/assignments/{assignment_id}/my-submission")
-def my_submission(assignment_id: str, current_user=Depends(require_student), db: Session = Depends(get_db)):
+@router.get("/student/courses/{course_id}/assignments/{assignment_id}/my-submission")
+def my_submission(
+    course_id: str,
+    assignment_id: str,
+    current_user=Depends(require_student),
+    db: Session = Depends(get_db),
+):
     return _ok(svc.get_my_submission(assignment_id, current_user.id, db))
