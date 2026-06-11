@@ -48,6 +48,7 @@ def get_progress(course_id: str, plan_id: str, student_id: str, db: Session) -> 
         })
     return {
         "plan_id": plan_id, "version": plan.version,
+        "plan_days": plan.basis.get("plan_days"),
         "total_days": total, "completed_days": completed_count,
         "completion_rate": round(completed_count / total, 2) if total else 0.0,
         "tasks": tasks,
@@ -86,6 +87,7 @@ def get_plan_effect(course_id: str, plan_id: str, student_id: str, db: Session) 
     avg_after = round(sum(r["rate"] for r in after) / len(after), 2) if after else None
     return {
         "plan_id": plan_id, "plan_created_at": plan.created_at.isoformat(),
+        "plan_days": plan.basis.get("plan_days"),
         "assignment_effect": {
             "before": {"count": len(before), "avg_rate": avg_before, "records": before},
             "after": {"count": len(after), "avg_rate": avg_after, "records": after},

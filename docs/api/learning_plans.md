@@ -279,6 +279,7 @@ GET /api/student/courses/{course_id}/learning-plans/{plan_id}/progress
   "data": {
     "plan_id": "plan_001",
     "version": 1,
+    "plan_days": 7,
     "total_days": 5,
     "completed_days": 2,
     "completion_rate": 0.40,
@@ -329,6 +330,7 @@ GET /api/student/courses/{course_id}/learning-plans/{plan_id}/effect
   "data": {
     "plan_id": "plan_001",
     "plan_created_at": "2026-06-10T20:00:00+08:00",
+    "plan_days": 7,
     "assignment_effect": {
       "before": {
         "count": 2,
