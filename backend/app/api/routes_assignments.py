@@ -154,11 +154,11 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    file: UploadFile | None = File(None),
+    files: list[UploadFile] = File([]),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
-    sub = await svc.submit_assignment(course_id, assignment_id, current_user.id, submit_type, content, file, db)
+    sub = await svc.submit_assignment(course_id, assignment_id, current_user.id, submit_type, content, files, db)
     return _ok({
         "id": sub.id, "assignment_id": assignment_id,
         "student_id": current_user.id, "submit_type": sub.submit_type,

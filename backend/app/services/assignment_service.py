@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.assignment import Assignment
 from app.models.grade import AIGradingResult
-from app.models.submission import Submission
+from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.services.course_service import _require_enrollment, _require_teacher_course
 
@@ -212,7 +212,7 @@ def get_student_assignment(course_id: str, assignment_id: str, student_id: str, 
 
 async def submit_assignment(
     course_id: str, assignment_id: str, student_id: str,
-    submit_type: str, content: str | None, file: UploadFile | None, db: Session,
+    submit_type: str, content: str | None, files: list[UploadFile], db: Session,
 ) -> Submission:
     _require_enrollment(course_id, student_id, db)
     a = _require_assignment(assignment_id, course_id, db)
@@ -224,28 +224,37 @@ async def submit_assignment(
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="已提交过该作业，不能重复提交")
-    file_path = None
-    extracted_text = None
-    if submit_type == "file" and file:
-        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin"
-        import uuid
-        fname = f"submission_{uuid.uuid4()}.{ext}"
-        fpath = os.path.join(settings.upload_dir, fname)
-        data = await file.read()
-        with open(fpath, "wb") as f:
-            f.write(data)
-        file_path = fpath
-        try:
-            from app.services.file_processor_client import extract_text
-            extracted_text = extract_text(fpath)
-        except Exception:
-            pass
+
     sub = Submission(
         assignment_id=assignment_id, student_id=student_id,
         submit_type=submit_type, content=content,
-        file_path=file_path, extracted_text=extracted_text,
     )
     db.add(sub)
+    db.flush()
+
+    if submit_type == "file" and files:
+        for file in files:
+            ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "bin"
+            import uuid
+            fname = f"submission_{uuid.uuid4()}.{ext}"
+            fpath = os.path.join(settings.upload_dir, fname)
+            data = await file.read()
+            with open(fpath, "wb") as f:
+                f.write(data)
+            extracted_text = None
+            try:
+                from app.services.file_processor_client import extract_text
+                extracted_text = extract_text(fpath)
+            except Exception:
+                pass
+            db.add(SubmissionFile(
+                submission_id=sub.id,
+                filename=file.filename or "unknown",
+                file_path=fpath,
+                file_size=len(data),
+                extracted_text=extracted_text,
+            ))
+
     db.commit()
     db.refresh(sub)
     return sub
@@ -261,13 +270,19 @@ def get_my_submission(course_id: str, assignment_id: str, student_id: str, db: S
     if not sub:
         raise HTTPException(status_code=404, detail="尚未提交该作业")
     grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == sub.id).first()
-    file_url = f"/files/{os.path.basename(sub.file_path)}" if sub.file_path else None
+    sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == sub.id).all()
+    file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+    files_detail = [{
+        "filename": f.filename,
+        "file_url": f"/files/{os.path.basename(f.file_path)}",
+        "file_size": f.file_size,
+    } for f in sf_records]
     return {
         "id": sub.id, "assignment_id": assignment_id,
         "submit_type": sub.submit_type,
         "content": sub.content,
-        "file_url": file_url,
-        "file_urls": [file_url] if file_url else [],
+        "file_urls": file_urls,
+        "files": files_detail,
         "submitted_at": sub.submitted_at, "status": sub.status,
         "score": grade.final_score if grade and grade.confirmed else None,
         "ai_score": grade.ai_score if grade else None,

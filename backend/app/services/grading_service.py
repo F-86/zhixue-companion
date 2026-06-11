@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.assignment import Assignment
 from app.models.grade import AIGradingResult
-from app.models.submission import Submission
+from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.services import minimax_client
 
@@ -25,17 +25,28 @@ def grade_submissions(
         if not sub or sub.assignment_id != assignment_id:
             continue
 
-        # 取作业文本（优先 C++ 提取文本，其次文本提交内容，最后尝试实时提取文件）
-        content = sub.extracted_text or sub.content or ""
-        if not content and sub.file_path:
-            try:
-                from app.services.file_processor_client import extract_text
-                content = extract_text(sub.file_path) or ""
-                if content:
-                    sub.extracted_text = content
-                    db.commit()
-            except Exception:
-                pass
+        # 取作业文本（文本提交内容 或 从所有提交文件中聚合提取文本）
+        content = sub.content or ""
+        if not content:
+            sf_records = db.query(SubmissionFile).filter(
+                SubmissionFile.submission_id == sub.id,
+            ).all()
+            # 优先用已提取的文本，否则实时提取
+            extracted_parts = []
+            for sf in sf_records:
+                text = sf.extracted_text
+                if not text:
+                    try:
+                        from app.services.file_processor_client import extract_text
+                        text = extract_text(sf.file_path) or ""
+                        if text:
+                            sf.extracted_text = text
+                            db.commit()
+                    except Exception:
+                        pass
+                if text:
+                    extracted_parts.append(text)
+            content = "\n\n".join(extracted_parts)
         if not content:
             results.append({
                 "submission_id": sub_id,

@@ -102,7 +102,7 @@ GET /api/student/courses/{course_id}/assignments/{assignment_id}
 POST /api/student/courses/{course_id}/assignments/{assignment_id}/submit
 ```
 
-**功能说明：** 学生提交作业内容，支持纯文本提交或文件上传（二选一）。文件提交时由 C++ 文件处理服务提取文本。
+**功能说明：** 学生提交作业内容，支持纯文本提交或文件上传（二选一）。文件提交时支持同时上传多个文件，由 C++ 文件处理服务逐文件提取文本。
 
 **请求体（文本提交，Content-Type: application/json）：**
 
@@ -117,7 +117,7 @@ POST /api/student/courses/{course_id}/assignments/{assignment_id}/submit
 
 ```text
 submit_type=file
-file=<二进制文件内容，支持 PDF、TXT、DOC，最大 10 MB>
+files=<一个或多个二进制文件，支持 PDF、TXT、DOC，单文件最大 10 MB>
 ```
 
 **字段说明：**
@@ -126,7 +126,7 @@ file=<二进制文件内容，支持 PDF、TXT、DOC，最大 10 MB>
 | --- | --- | --- | --- |
 | submit_type | string | 是 | text（文本） 或 file（文件） |
 | content | string | text 时必填 | 作业正文 |
-| file | file | file 时必填 | 作业文件 |
+| files | file[] | file 时必填 | 作业文件，支持多文件上传 |
 
 **响应示例：**
 
@@ -162,7 +162,11 @@ GET /api/student/courses/{course_id}/assignments/{assignment_id}/my-submission
     "id": "submission_001",
     "assignment_id": "assignment_001",
     "submit_type": "file",
-    "file_url": "/files/submission_001.pdf",
+    "file_urls": ["/files/submission_001_report.pdf", "/files/submission_001_code.zip"],
+    "files": [
+      { "filename": "实验报告.pdf", "file_url": "/files/submission_001_report.pdf", "file_size": 204800 },
+      { "filename": "源代码.zip", "file_url": "/files/submission_001_code.zip", "file_size": 51200 }
+    ],
     "submitted_at": "2026-06-08T14:30:00+08:00",
     "status": "submitted",
     "score": 88,

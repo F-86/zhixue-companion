@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
-from app.models.submission import Submission
+from app.models.submission import Submission, SubmissionFile
 from app.services import file_processor_client
 
 
@@ -75,27 +75,34 @@ def submit_text(assignment_id: str, student_id: str, content: str, db: Session) 
     return sub
 
 
-def submit_file(assignment_id: str, student_id: str, file: UploadFile, db: Session) -> Submission:
+def submit_file(assignment_id: str, student_id: str, files: list[UploadFile], db: Session) -> Submission:
     _check_can_submit(assignment_id, student_id, db)
-    _validate_file(file)
-
-    # 保存文件
-    filename = f"{student_id}_{assignment_id}_{file.filename}"
-    save_path = os.path.join(settings.upload_dir, filename)
-    with open(save_path, "wb") as f:
-        f.write(file.file.read())
-
-    # C++ pybind11 提取文本
-    extracted = file_processor_client.extract_text(save_path)
+    for file in files:
+        _validate_file(file)
 
     sub = Submission(
         assignment_id=assignment_id,
         student_id=student_id,
         submit_type="file",
-        file_path=save_path,
-        extracted_text=extracted,
     )
     db.add(sub)
+    db.flush()  # 获取 sub.id
+
+    for file in files:
+        filename = f"{student_id}_{assignment_id}_{sub.id}_{file.filename}"
+        save_path = os.path.join(settings.upload_dir, filename)
+        content_bytes = file.file.read()
+        with open(save_path, "wb") as f:
+            f.write(content_bytes)
+        # C++ pybind11 提取文本
+        extracted = file_processor_client.extract_text(save_path)
+        db.add(SubmissionFile(
+            submission_id=sub.id,
+            filename=file.filename or "unknown",
+            file_path=save_path,
+            file_size=len(content_bytes),
+            extracted_text=extracted,
+        ))
     db.commit()
     db.refresh(sub)
     return sub
@@ -109,6 +116,8 @@ def get_my_submission(assignment_id: str, student_id: str, db: Session) -> Submi
     )
     if not sub:
         raise HTTPException(status_code=404, detail="尚未提交")
+    sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == sub.id).all()
+    sub._files = sf_records  # 临时附加，供路由使用
     return sub
 
 

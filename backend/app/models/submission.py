@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -24,9 +24,20 @@ class Submission(Base):
     # text | file
     submit_type: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    # C++ pybind11 提取的文本
-    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     # submitted
     status: Mapped[str] = mapped_column(String, default="submitted")
+
+
+class SubmissionFile(Base):
+    """学生提交的文件（支持多文件上传）。"""
+    __tablename__ = "submission_files"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    submission_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    file_path: Mapped[str] = mapped_column(String, nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 由 C++ pybind11 提取的文本内容，用于 AI 批改
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

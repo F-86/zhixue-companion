@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.analysis_report import AnalysisReport
 from app.models.assignment import Assignment
-from app.models.submission import Submission
+from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.services import file_processor_client, minimax_client
 
@@ -27,7 +27,13 @@ def analyze(
         sub = db.get(Submission, sub_id)
         if not sub or sub.assignment_id != assignment_id:
             continue
-        text = sub.extracted_text or sub.content or ""
+        text = sub.content or ""
+        if not text:
+            sf_records = db.query(SubmissionFile).filter(
+                SubmissionFile.submission_id == sub_id,
+            ).all()
+            extracted_parts = [sf.extracted_text or "" for sf in sf_records if sf.extracted_text]
+            text = "\n\n".join(extracted_parts)
         student = db.get(User, sub.student_id)
         submissions_data.append({
             "id": sub_id,
