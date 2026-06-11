@@ -31,7 +31,7 @@ def get_assignment(
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
-    result = svc.get_assignment_detail(assignment_id, current_user.id, db)
+    result = svc.get_assignment_detail(course_id, assignment_id, current_user.id, db)
     return _ok(result)
 
 
@@ -83,4 +83,4 @@ def my_submission(
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
-    return _ok(svc.get_my_submission(assignment_id, current_user.id, db))
+    return _ok(svc.get_my_submission(course_id, assignment_id, current_user.id, db))

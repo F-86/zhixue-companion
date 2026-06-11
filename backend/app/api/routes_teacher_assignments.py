@@ -42,8 +42,8 @@ async def publish_assignment(
         raise HTTPException(status_code=400, detail="due_at 格式不合法，请使用 ISO 8601")
 
     a = svc.publish_assignment(
-        current_user.id, title, course, description,
-        due_dt, reference_answer, rubric, attachment_file_id, db,
+        course_id, course, current_user.id, title, description,
+        due_dt, reference_answer, rubric, 100.0, attachment_file_id, db,
     )
     attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
     return _ok({
@@ -62,7 +62,7 @@ def list_assignments(
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    return _ok(svc.list_assignments(current_user.id, course, status, db))
+    return _ok(svc.list_assignments(course_id, current_user.id, course, status, db))
 
 
 @router.get("/teacher/courses/{course_id}/assignments/{assignment_id}")
@@ -72,7 +72,7 @@ def get_assignment(
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    return _ok(svc.get_assignment(assignment_id, current_user.id, db))
+    return _ok(svc.get_assignment(course_id, assignment_id, current_user.id, db))
 
 
 @router.patch("/teacher/courses/{course_id}/assignments/{assignment_id}")
@@ -83,7 +83,7 @@ def update_assignment(
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    a = svc.update_assignment(assignment_id, current_user.id, req, db)
+    a = svc.update_assignment(course_id, assignment_id, current_user.id, req.description, req.due_at, db)
     return _ok({"id": a.id, "description": a.description, "due_at": a.due_at, "updated_at": a.updated_at}, "updated")
 
 
@@ -94,7 +94,7 @@ def close_assignment(
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    a = svc.close_assignment(assignment_id, current_user.id, db)
+    a = svc.close_assignment(course_id, assignment_id, current_user.id, db)
     return _ok({"id": a.id, "status": a.status}, "closed")
 
 
@@ -105,7 +105,7 @@ def list_submissions(
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    return _ok(svc.list_submissions(assignment_id, current_user.id, db))
+    return _ok(svc.list_submissions(course_id, assignment_id, current_user.id, db))
 
 
 # ── AI 批改 ───────────────────────────────────────────────────
