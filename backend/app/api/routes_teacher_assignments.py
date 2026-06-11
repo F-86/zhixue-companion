@@ -123,6 +123,20 @@ def get_submission_detail(
     raise HTTPException(status_code=404, detail="提交不存在")
 
 
+@router.patch("/teacher/courses/{course_id}/assignments/{assignment_id}/submissions/{submission_id}")
+def update_submission_grade(
+    course_id: str,
+    assignment_id: str,
+    submission_id: str,
+    req: GradeConfirmRequest,
+    current_user=Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    """确认/调整单份提交的评分（与 /teacher/submissions/{submission_id}/grade 等效）。"""
+    grade = grading_service.confirm_grade(submission_id, req.final_score, req.confirmed, req.teacher_comment, db)
+    return _ok({"submission_id": submission_id, "final_score": grade.final_score, "confirmed": grade.confirmed}, "updated")
+
+
 # ── AI 批改 ───────────────────────────────────────────────────
 
 @router.post("/teacher/courses/{course_id}/assignments/{assignment_id}/grade")
