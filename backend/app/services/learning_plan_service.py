@@ -152,7 +152,8 @@ def create_plan(course_id: str, student_id: str, goal: str | None,
                                 result.get("plan", []), result.get("analysis", {}), db)
     return {
         "id": plan_obj.id, "course_id": course_id, "course_name": course.name,
-        "career_direction": career_direction, "data_sources": data_sources,
+        "goal": basis.get("goal"), "career_direction": career_direction,
+        "data_sources": data_sources,
         "analysis": plan_obj.analysis, "rag_references": rag_refs,
         "plan": plan_obj.plan, "created_at": plan_obj.created_at.isoformat(),
     }
@@ -184,7 +185,7 @@ def get_plan(course_id: str, plan_id: str, student_id: str, db: Session) -> dict
     career_direction = (student.extra or {}).get("career_direction") if student else None
     return {
         "id": p.id, "course_id": course_id, "course_name": course.name if course else "",
-        "career_direction": career_direction, "status": p.status,
+        "goal": p.basis.get("goal"), "career_direction": career_direction, "status": p.status,
         "data_sources": p.data_sources, "analysis": p.analysis,
         "rag_references": [], "plan": p.plan, "created_at": p.created_at.isoformat(),
     }

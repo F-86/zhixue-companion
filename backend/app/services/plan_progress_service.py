@@ -133,6 +133,7 @@ def adjust_plan(course_id: str, plan_id: str, student_id: str,
     return {
         "id": new_plan.id, "course_id": course_id,
         "course_name": course.name if course else "",
+        "goal": new_plan.basis.get("goal"),
         "career_direction": career_direction,
         "version": new_plan.version,
         "parent_plan_id": new_plan.parent_plan_id,
