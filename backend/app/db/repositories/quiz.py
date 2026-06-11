@@ -402,6 +402,6 @@ def get_quiz_scores_for_signals(course_id: str, student_id: str, db: Session) ->
             "score": attempt.total_score,
             "full_score": attempt.full_score,
             "wrong_questions": wrong_questions,
-            "submitted_at": attempt.submitted_at,
+            "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else None,
         })
     return records
