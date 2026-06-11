@@ -120,7 +120,7 @@ def _rag_retrieve_for_plan(course_id: str, weak_points: list[str], db: Session) 
 
 
 def create_plan(course_id: str, student_id: str, goal: str | None,
-                available_time_per_day: int, db: Session) -> dict:
+                available_time_per_day: int, plan_days: int, db: Session) -> dict:
     _require_enrollment(course_id, student_id, db)
     from app.models.course import Course
     from app.models.user import User
@@ -144,7 +144,7 @@ def create_plan(course_id: str, student_id: str, goal: str | None,
 
     from app.services.minimax_client import generate_learning_plan
     effective_goal = goal or "根据学情数据制定合适的学习计划"
-    result = generate_learning_plan(course.name, effective_goal, basis, available_time_per_day)
+    result = generate_learning_plan(course.name, effective_goal, basis, available_time_per_day, plan_days)
 
     student = db.get(User, student_id)
     career_direction = (student.extra or {}).get("career_direction") if student else None

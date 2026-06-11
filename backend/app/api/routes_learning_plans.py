@@ -20,6 +20,7 @@ def _ok(data, message="ok"):
 class PlanCreateRequest(BaseModel):
     goal: str | None = None
     available_time_per_day: int = 60
+    plan_days: int = 7
 
 
 class PlanStatusRequest(BaseModel):
@@ -42,7 +43,7 @@ class PlanAdjustRequest(BaseModel):
 @router.post("/student/courses/{course_id}/learning-plans", status_code=201)
 def create_plan(course_id: str, req: PlanCreateRequest,
                  current_user=Depends(require_student), db: Session = Depends(get_db)):
-    return _ok(svc.create_plan(course_id, current_user.id, req.goal, req.available_time_per_day, db), "created")
+    return _ok(svc.create_plan(course_id, current_user.id, req.goal, req.available_time_per_day, req.plan_days, db), "created")
 
 
 @router.get("/student/courses/{course_id}/learning-plans")

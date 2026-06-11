@@ -283,19 +283,23 @@ def generate_summary(title: str, source_text: str, summary_type: str, course: st
         return {"overview": raw, "key_points": [], "difficult_points": [], "review_tips": []}
 
 
-def generate_learning_plan(course: str, goal: str, basis: dict, available_minutes: int) -> dict:
+def generate_learning_plan(course: str, goal: str, basis: dict, available_minutes: int, plan_days: int = 7) -> dict:
     """
     生成个性化学习计划。
     返回: {"analysis": {...}, "plan": [{"day": 1, "task": "...", "duration_minutes": 60}, ...]}
     """
     system = (
         "你是一个专业的学习规划助手。根据学生的成绩、作业完成情况和学习目标，"
-        "生成一份按天安排的学习计划。"
-        "以 JSON 格式返回，包含字段：analysis（包含 current_level、weak_points、priority）"
-        "和 plan（每天任务列表，每项含 day、task、duration_minutes）。"
+        f"生成一份为期 {plan_days} 天的个性化学习计划。"
+        "计划应遵循「复习巩固 → 重点突破 → 综合练习 → 总结回顾」的节奏，"
+        "每天的任务应当具体、可执行，包含具体的学习内容（如复习哪个章节、做哪些练习题），"
+        "而非泛泛的'复习知识点'之类表述。"
+        "对于薄弱知识点，应安排多轮螺旋式复习，而非一次性覆盖。"
+        "以 JSON 格式返回，包含字段：analysis（包含 current_level、weak_points、priority、plan_structure 概述）"
+        "和 plan（每天任务列表，每项含 day、task、duration_minutes、tips 可选学习技巧）。"
     )
     user = (
-        f"课程：{course}\n学习目标：{goal}\n每天可用时间：{available_minutes} 分钟\n"
+        f"课程：{course}\n学习目标：{goal}\n计划天数：{plan_days} 天\n每天可用时间：{available_minutes} 分钟\n"
         f"学情数据：{json.dumps(basis, ensure_ascii=False)}"
     )
     raw = _chat(system, user)

@@ -42,7 +42,8 @@ POST /api/student/courses/{course_id}/learning-plans
 ```json
 {
   "goal": "两周内提升进程调度相关知识点的掌握程度",
-  "available_time_per_day": 60
+  "available_time_per_day": 60,
+  "plan_days": 7
 }
 ```
 
@@ -52,6 +53,7 @@ POST /api/student/courses/{course_id}/learning-plans
 | --- | --- | --- | --- |
 | goal | string | 否 | 学习目标描述，不填则由 AI 根据采集到的薄弱点自动制定 |
 | available_time_per_day | integer | 否 | 每天可用学习时间（分钟），默认 60 |
+| plan_days | integer | 否 | 计划总天数，默认 7，范围 1-60 |
 
 **响应示例：**
 

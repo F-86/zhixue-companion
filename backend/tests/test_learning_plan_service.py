@@ -310,6 +310,7 @@ class TestCreatePlan:
             student_id=student.id,
             goal="提升进程管理知识",
             available_time_per_day=60,
+            plan_days=7,
             db=db,
         )
         assert "id" in result
@@ -328,6 +329,7 @@ class TestCreatePlan:
             student_id=student.id,
             goal=None,
             available_time_per_day=60,
+            plan_days=7,
             db=db,
         )
         plan_in_db = db.get(LearningPlan, result["id"])
@@ -345,6 +347,7 @@ class TestCreatePlan:
             student_id=student.id,
             goal=None,
             available_time_per_day=60,
+            plan_days=7,
             db=db,
         )
         assert "profile" in result["data_sources"]
@@ -371,6 +374,7 @@ class TestCreatePlan:
             student_id=student.id,
             goal=None,
             available_time_per_day=60,
+            plan_days=7,
             db=db,
         )
         assert "course_materials" in result["data_sources"]
@@ -388,6 +392,7 @@ class TestCreatePlan:
                 student_id=student.id,
                 goal=None,
                 available_time_per_day=60,
+                plan_days=7,
                 db=db,
             )
 
