@@ -56,15 +56,21 @@ POST /api/upload
 
 ## 一、学生端作业 API
 
-> 基础路径：`/api/student/assignments`
+> 基础路径：`/api/student/courses/{course_id}/assignments`
 >
 > 权限：`role = student`
 
 ### 1.1 获取作业列表
 
 ```http
-GET /api/student/assignments
+GET /api/student/courses/{course_id}/assignments
 ```
+
+**路径参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
 
 **查询参数：**
 
@@ -100,13 +106,14 @@ GET /api/student/assignments
 ### 1.2 获取作业详情
 
 ```http
-GET /api/student/assignments/{assignment_id}
+GET /api/student/courses/{course_id}/assignments/{assignment_id}
 ```
 
 **路径参数：**
 
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
 | assignment_id | string | 是 | 作业 ID |
 
 **响应示例：**
@@ -133,8 +140,15 @@ GET /api/student/assignments/{assignment_id}
 ### 1.3 提交作业
 
 ```http
-POST /api/student/assignments/{assignment_id}/submit
+POST /api/student/courses/{course_id}/assignments/{assignment_id}/submit
 ```
+
+**路径参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
+| assignment_id | string | 是 | 作业 ID |
 
 **功能说明：** 学生提交作业，支持文本和文件两种模式。**文件提交时需先将文件通过 `POST /api/upload` 上传，获得 `file_id` 后再调用本接口。**
 
@@ -182,7 +196,19 @@ file_ids=f_abc123,f_def456
 ### 1.4 查看本人提交详情
 
 ```http
-GET /api/student/assignments/{assignment_id}/my-submission
+GET /api/student/courses/{course_id}/assignments/{assignment_id}/my-submission
+```
+
+**路径参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
+| assignment_id | string | 是 | 作业 ID |
+
+**响应示例：**
+
+```json
 ```
 
 **响应示例：**
@@ -223,15 +249,21 @@ GET /api/student/assignments/{assignment_id}/my-submission
 
 ## 二、教师端作业管理 API
 
-> 基础路径：`/api/teacher/assignments`
+> 基础路径：`/api/teacher/courses/{course_id}/assignments`
 >
 > 权限：`role = teacher`
 
 ### 2.1 发布作业
 
 ```http
-POST /api/teacher/assignments
+POST /api/teacher/courses/{course_id}/assignments
 ```
+
+**路径参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
 
 **功能说明：** 教师发布新作业。如有附件，需先将文件通过 `POST /api/upload` 上传，得到 `file_id` 后再传入 `attachment_file_id`。
 
@@ -271,8 +303,14 @@ POST /api/teacher/assignments
 ### 2.2 获取作业列表
 
 ```http
-GET /api/teacher/assignments
+GET /api/teacher/courses/{course_id}/assignments
 ```
+
+**路径参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
 
 **查询参数：**
 
@@ -309,13 +347,14 @@ GET /api/teacher/assignments
 ### 2.3 获取作业详情
 
 ```http
-GET /api/teacher/assignments/{assignment_id}
+GET /api/teacher/courses/{course_id}/assignments/{assignment_id}
 ```
 
 **路径参数：**
 
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
+| course_id | string | 是 | 课程 ID |
 | assignment_id | string | 是 | 作业 ID |
 
 **响应示例：**
@@ -346,7 +385,7 @@ GET /api/teacher/assignments/{assignment_id}
 ### 2.4 更新作业
 
 ```http
-PATCH /api/teacher/assignments/{assignment_id}
+PATCH /api/teacher/courses/{course_id}/assignments/{assignment_id}
 ```
 
 **请求体（application/json）：**
@@ -378,7 +417,7 @@ PATCH /api/teacher/assignments/{assignment_id}
 ### 2.5 关闭作业
 
 ```http
-POST /api/teacher/assignments/{assignment_id}/close
+POST /api/teacher/courses/{course_id}/assignments/{assignment_id}/close
 ```
 
 **响应示例：**
@@ -399,7 +438,7 @@ POST /api/teacher/assignments/{assignment_id}/close
 ### 2.6 获取作业提交列表
 
 ```http
-GET /api/teacher/assignments/{assignment_id}/submissions
+GET /api/teacher/courses/{course_id}/assignments/{assignment_id}/submissions
 ```
 
 **响应示例：**
@@ -439,14 +478,14 @@ GET /api/teacher/assignments/{assignment_id}/submissions
 
 ## 三、教师端 AI 批改 API
 
-> 基础路径：`/api/teacher/assignments/{assignment_id}`
+> 基础路径：`/api/teacher/courses/{course_id}/assignments/{assignment_id}`
 >
 > 权限：`role = teacher`
 
 ### 3.1 AI 批改作业
 
 ```http
-POST /api/teacher/assignments/{assignment_id}/grade
+POST /api/teacher/courses/{course_id}/assignments/{assignment_id}/grade
 ```
 
 **请求体（application/json）：**
@@ -528,7 +567,7 @@ PATCH /api/teacher/submissions/{submission_id}/grade
 ### 3.3 获取批改报告
 
 ```http
-GET /api/teacher/assignments/{assignment_id}/grading-report
+GET /api/teacher/courses/{course_id}/assignments/{assignment_id}/grading-report
 ```
 
 **响应示例：**
@@ -557,7 +596,7 @@ GET /api/teacher/assignments/{assignment_id}/grading-report
 ### 4.1 触发查重与比对分析
 
 ```http
-POST /api/teacher/assignments/{assignment_id}/analyze
+POST /api/teacher/courses/{course_id}/assignments/{assignment_id}/analyze
 ```
 
 **请求体（application/json）：**
@@ -625,7 +664,7 @@ POST /api/teacher/assignments/{assignment_id}/analyze
 ### 4.2 获取分析报告
 
 ```http
-GET /api/teacher/assignments/{assignment_id}/analyze-report
+GET /api/teacher/courses/{course_id}/assignments/{assignment_id}/analyze-report
 ```
 
 **响应示例：**

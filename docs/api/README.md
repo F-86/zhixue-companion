@@ -105,7 +105,7 @@ Authorization: Bearer <token>
 | 文件上传 | [api/assignments.md](api/assignments.md#零文件上传独立接口) | `/api/upload` | 独立文件上传接口，上传到文件服务器后返回可访问路径 |
 | 课程管理 | [api/courses.md](api/courses.md) | `/api/teacher/courses`<br>`/api/student/courses` | 教师创建课程/按学号添加学生、课程码、学生加入/退出课程 |
 | 课程小节 | [api/sections.md](api/sections.md) | `/api/teacher/courses/{id}/sections`<br>`/api/student/courses/{id}/sections` | 课程小节 CRUD、小节下发布作业 |
-| 作业管理与批改 | [api/assignments.md](api/assignments.md) | `/api/student/assignments`<br>`/api/teacher/assignments` | 学生提交作业、教师管理/批改/查重/比对 |
+| 作业管理与批改 | [api/assignments.md](api/assignments.md) | `/api/student/courses/{id}/assignments`<br>`/api/teacher/courses/{id}/assignments` | 学生提交作业、教师管理/批改/查重/比对 |
 | 课程公告 | [api/announcements.md](api/announcements.md) | `/api/courses/{id}/announcements` | 教师发布公告、学生查看（含已读状态） |
 | 讨论 | [api/discussions.md](api/discussions.md) | `/api/courses/{id}/discussions` | 教师发起讨论，师生均可回复 |
 | 提问 | [api/questions.md](api/questions.md) | `/api/courses/{id}/questions` | 学生向教师提问，支持公开/私密，教师回答 |
@@ -126,7 +126,7 @@ Authorization: Bearer <token>
 | 文件上传 | `/api/upload` | `app/api/routes_upload.py` |
 | 课程管理 | `/api/teacher/courses`<br>`/api/student/courses` | `app/api/routes_courses.py` |
 | 课程小节 | `/api/teacher/courses/{id}/sections`<br>`/api/student/courses/{id}/sections` | `app/api/routes_sections.py` |
-| 作业管理与批改 | `/api/student/assignments`<br>`/api/teacher/assignments` | `app/api/routes_assignments.py`<br>`app/api/routes_student_assignments.py`<br>`app/api/routes_teacher_assignments.py` |
+| 作业管理与批改 | `/api/student/courses/{id}/assignments`<br>`/api/teacher/courses/{id}/assignments` | `app/api/routes_student_assignments.py`<br>`app/api/routes_teacher_assignments.py` |
 | 课程公告 | `/api/courses/{id}/announcements` | `app/api/routes_announcements.py` |
 | 讨论 | `/api/courses/{id}/discussions` | `app/api/routes_discussions.py` |
 | 提问 | `/api/courses/{id}/questions` | `app/api/routes_questions.py` |
