@@ -64,7 +64,14 @@ POST /api/student/courses/{course_id}/learning-plans
     "id": "plan_001",
     "course_id": "course_001",
     "course_name": "操作系统",
-    "goal": "两周内提升进程调度相关知识点的掌握程度",
+    "basis": {
+      "goal": "两周内提升进程调度相关知识点的掌握程度",
+      "available_time_per_day": 60,
+      "plan_days": 7,
+      "grade_records": [
+        { "title": "进程管理练习", "score": 68, "full_score": 100, "weak_points": ["进程状态转换"] }
+      ]
+    },
     "career_direction": "backend",
     "version": 1,
     "parent_plan_id": null,
@@ -325,7 +332,12 @@ POST /api/student/courses/{course_id}/learning-plans/{plan_id}/adjust
     "id": "plan_002",
     "course_id": "course_001",
     "course_name": "操作系统",
-    "goal": "两周内提升进程调度相关知识点的掌握程度",
+    "basis": {
+      "goal": "两周内提升进程调度相关知识点的掌握程度",
+      "available_time_per_day": 45,
+      "plan_days": 7,
+      "adjustment_feedback": "第 2、3 天关于调度算法的内容对我来说太难了..."
+    },
     "career_direction": "backend",
     "version": 2,
     "parent_plan_id": "plan_001",
