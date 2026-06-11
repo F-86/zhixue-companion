@@ -81,6 +81,7 @@ GET /api/teacher/courses/{course_id}/sections
         "id": "section_001",
         "title": "第一章：进程管理",
         "order": 1,
+        "material_url": "/files/section_material_xxx.pdf",
         "assignment_count": 2,
         "created_at": "2026-06-04T10:00:00+08:00"
       },
@@ -88,6 +89,7 @@ GET /api/teacher/courses/{course_id}/sections
         "id": "section_002",
         "title": "第二章：内存管理",
         "order": 2,
+        "material_url": null,
         "assignment_count": 1,
         "created_at": "2026-06-05T10:00:00+08:00"
       }
