@@ -268,7 +268,7 @@ sequenceDiagram
 
 ## 7. C++ 文件处理模块设计
 
-C++ 文件处理模块通过 **pybind11** 编译为 Python 扩展（`file_processor.so`），由 FastAPI 后端直接 `import` 使用，无进程启动开销，参数与返回值以 Python 原生类型传递。详细的函数接口规范见 [cpp_api.md](cpp_api.md)。
+C++ 文件处理模块通过 **pybind11** 编译为 Python 扩展（`.so`），由 FastAPI 后端在 `app/file_processing/processor.py` 中直接 `import` 使用，无进程启动开销，参数与返回值以 Python 原生类型传递。详细的函数接口规范见 [cpp_api.md](cpp_api.md)。
 
 ### 7.1 应用场景
 
@@ -305,7 +305,7 @@ cpp_processor/
     test_fingerprint.cpp
 ```
 
-## 8. 后端目录建议
+## 8. 后端目录
 
 ```text
 backend/
@@ -314,45 +314,54 @@ backend/
   app/
     main.py
     core/
-      config.py
-      security.py        // JWT 工具函数
+      config.py              # 配置（pydantic-settings）
+      security.py            # JWT 工具函数
     api/
-      routes_auth.py             // 注册 / 登录
+      routes_auth.py         # 注册 / 登录
       routes_chat.py
-      routes_student_assignments.py   // 学生查看 / 提交作业
-      routes_summary.py
+      routes_student_assignments.py
+      routes_summaries.py
       routes_learning_plans.py
-      routes_teacher_assignments.py   // 教师发布 / 管理作业
+      routes_teacher_assignments.py
     services/
-      auth_service.py
-      chat_service.py
-      student_assignment_service.py
-      summary_service.py
+      auth_service.py        # 认证（从 db.repositories 重导出）
+      chat_service.py        # 智能问答编排
+      grading_service.py     # AI 批改编排
+      analyze_service.py     # 查重比对编排
       learning_plan_service.py
-      grading_service.py
-      analyze_service.py        // 查重与比对合并服务
-      file_processor_client.py  // 调用 C++ 文件处理服务
-      minimax_client.py
-    models/
-      user.py
-      chat.py
-      assignment.py
-      submission.py
-      grade.py
-      learning_plan.py
-    schemas/
-      auth.py
-      chat.py
-      student_assignment.py
-      summary.py
-      learning_plan.py
-      teacher_assignment.py
+      plan_progress_service.py
+      summary_service.py
+      minimax_client.py      # MiniMax API 适配
+      ...                    # 其他领域（重导出层）
     db/
-      session.py
-      init_db.py
+      session.py             # SQLAlchemy 引擎 / Session
+      init_db.py             # 建表入口
+      vector_store.py        # 向量库双后端封装
+      repositories/          # 数据仓库层（18 个模块）
+        user.py              # 用户 / 认证
+        course.py            # 课程管理
+        assignment.py
+        submission.py
+        grade.py             # AI 批改结果
+        analysis_report.py
+        quiz.py
+        chat.py
+        summary.py
+        learning_plan.py
+        plan_progress.py
+        announcement.py
+        discussion.py
+        question.py
+        section.py
+        score.py
+        file.py
+    file_processing/
+      processor.py           # C++ pybind11 扩展封装
+    models/                  # ORM 模型（17 张表）
+    schemas/                 # Pydantic 请求/响应模型
 ```
 
-## 9. 前端目录建议
+## 9. 前端目录
 
 ```text
 frontend/

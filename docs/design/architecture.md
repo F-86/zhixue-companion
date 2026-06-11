@@ -96,14 +96,13 @@
     ↓ HTTP 请求（Axios）
 API 路由层（FastAPI routes_*.py）
     ↓ 调用服务函数
-业务服务层（services/*.py）
-    ↓ 读写数据模型
+业务服务层（services/*.py）—— 业务编排 + AI 调用
+    ↓                    ↓
+数据仓库层（db/repositories/*.py）  外部适配层（minimax_client.py / file_processing/）
+    ↓
 数据模型层（models/*.py → SQLAlchemy ORM）
     ↓
 存储层（SQLite/PostgreSQL + ChromaDB/pgvector + 文件系统）
-        ↑（横切）
-AI 适配层（minimax_client.py）
-C++ 扩展层（file_processor_client.py → pybind11 .so）
 ```
 
 ### 各层职责
@@ -111,11 +110,11 @@ C++ 扩展层（file_processor_client.py → pybind11 .so）
 | 层 | 职责 | 代表文件 |
 |----|------|---------|
 | API 路由层 | 解析请求、鉴权注入、调服务、格式化响应 | `routes_chat.py` |
-| 业务服务层 | 业务逻辑、事务、AI 调用编排 | `chat_service.py` |
+| 业务服务层 | 业务逻辑、事务、AI 调用编排 | `chat_service.py`、`grading_service.py` |
+| 数据仓库层 | 纯 SQLAlchemy 查询、权限校验 | `db/repositories/chat.py` |
 | 数据模型层 | ORM 映射、表结构定义 | `models/section.py` |
-| AI 适配层 | HTTP 连接池、JSON 解析、降级处理 | `minimax_client.py` |
+| 外部适配层 | MiniMax HTTP 客户端、C++ 文件处理 | `minimax_client.py`、`file_processing/processor.py`（详见 [file_processing.md](file_processing.md)） |
 | 向量存储层 | ChromaDB/pgvector 双后端抽象 | `db/vector_store.py` |
-| C++ 扩展层 | 文件解析、文本指纹、批量比对 | `file_processor_client.py` |
 
 ---
 
@@ -127,7 +126,7 @@ C++ 扩展层（file_processor_client.py → pybind11 .so）
 
 - 课程设计阶段，团队规模小，拆分带来的运维成本远大于收益
 - FastAPI 的依赖注入本身已经做到了层级隔离
-- C++ 扩展以 pybind11 内嵌，无额外进程，调用延迟 < 1ms
+- C++ 扩展以 pybind11 内嵌于 `app/file_processing/`，无额外进程，调用延迟 < 1ms
 
 未来扩展路径：C++ 模块可以独立为 gRPC 微服务，其余保持单体。
 
@@ -202,12 +201,43 @@ zhixue-companion/
 │   │   ├── db/
 │   │   │   ├── session.py       # SQLAlchemy engine/session
 │   │   │   ├── init_db.py       # 建表入口
-│   │   │   └── vector_store.py  # 向量库双后端封装
+│   │   │   ├── vector_store.py  # 向量库双后端封装
+│   │   │   └── repositories/    # 数据仓库层（18 个模块）
+│   │   │       ├── user.py      # 用户 / 认证
+│   │   │       ├── course.py    # 课程管理
+│   │   │       ├── section.py   # 小节 + 材料分块
+│   │   │       ├── assignment.py
+│   │   │       ├── submission.py
+│   │   │       ├── grade.py     # AI 批改结果
+│   │   │       ├── analysis_report.py
+│   │   │       ├── quiz.py
+│   │   │       ├── chat.py
+│   │   │       ├── summary.py
+│   │   │       ├── learning_plan.py
+│   │   │       ├── plan_progress.py
+│   │   │       ├── announcement.py
+│   │   │       ├── discussion.py
+│   │   │       ├── question.py
+│   │   │       ├── score.py
+│   │   │       └── file.py
+│   │   ├── file_processing/     # C++ 文件处理封装
+│   │   │   └── processor.py     # pybind11 扩展调用
 │   │   ├── models/              # ORM 模型（17 张表）
 │   │   ├── schemas/             # Pydantic 请求/响应模型
 │   │   ├── api/                 # FastAPI 路由（12 个模块）
-│   │   └── services/            # 业务逻辑（14 个服务）
-│   └── tests/                   # pytest 测试（101 个用例）
+│   │   └── services/            # 业务编排层
+│   │       ├── __init__.py      # 从 db.repositories 重导出
+│   │       ├── chat_service.py  # 智能问答编排
+│   │       ├── learning_plan_service.py
+│   │       ├── plan_progress_service.py
+│   │       ├── summary_service.py
+│   │       ├── grading_service.py
+│   │       ├── analyze_service.py
+│   │       ├── minimax_client.py # MiniMax API 适配
+│   │       ├── auth_service.py   # 认证（重导出）
+│   │       ├── course_service.py # 课程（重导出）
+│   │       └── ...               # 其他领域（重导出）
+│   └── tests/                   # pytest 测试
 ├── frontend/
 │   ├── package.json
 │   └── src/
@@ -217,7 +247,7 @@ zhixue-companion/
 │       ├── router/              # React Router 路由定义
 │       ├── types/               # TypeScript 类型声明
 │       └── utils/               # 请求工具（request.ts）
-├── cpp_processor/               # C++ 文件处理扩展
+├── cpp_processor/               # C++ 文件处理扩展（pybind11）
 └── docs/
     └── design/                  # 设计文档（本目录）
 ```

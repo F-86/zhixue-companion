@@ -1,5 +1,7 @@
 # 智学伴侣 · 数据模型设计
 
+> 数据操作代码位于 `app/db/repositories/`（详情见 [database_layer.md](database_layer.md)），服务层与数据库的交互模式见 [services_db_interaction.md](services_db_interaction.md)。
+
 ## 1. E-R 总览
 
 ```
@@ -18,6 +20,8 @@ Course ──< LearningPlan ──< PlanTaskProgress
 Course ──< Announcement ──< AnnouncementRead
 Course ──< Discussion ──< DiscussionReply
 Course ──< Question ──< QuestionAnswer
+
+File ──< SubmissionFile >── Submission
 ```
 
 ---
@@ -105,6 +109,33 @@ sections
                                ↓（不同 / 首次）
                           删除旧向量 → 重新 Embedding → 更新 hash
 ```
+
+### 2.4 File（上传文件）
+
+```
+files
+├── id              String PK
+├── filename        String        原始文件名
+├── file_path       String        存储路径
+├── file_size       Integer       文件大小（字节）
+├── extracted_text  Text nullable C++ pybind11 提取的文本
+├── uploaded_by     String        上传者 user_id
+└── created_at      DateTime(tz=UTC)
+```
+
+**设计意图**：通用文件表与业务实体解耦，通过 `SubmissionFile` 关联表桥接到作业提交。`extracted_text` 由 C++ 文件处理后写入，供 AI 批改和查重使用。
+
+### 2.5 SubmissionFile（提交-文件关联）
+
+```
+submission_files
+├── id              String PK
+├── submission_id   String INDEX
+├── file_id         String INDEX
+└── created_at      DateTime(tz=UTC)
+```
+
+多对多关联：一份提交可包含多个文件，一个文件可被多次引用。
 
 ---
 
