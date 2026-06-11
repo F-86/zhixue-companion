@@ -133,12 +133,38 @@ def _chat_stream(system_prompt: str, user_content: str, *, temperature: float = 
 
 
 def _parse_json(text: str) -> dict | list:
-    """从模型回复中提取 JSON，兼容 markdown 代码块包裹"""
+    """从模型回复中提取 JSON，兼容 markdown 代码块包裹和截断"""
+    import re
     text = text.strip()
-    if text.startswith("```"):
+    # 去掉 markdown 代码块包裹（```json ... ``` 或 ``` ... ```）
+    m = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if m:
+        text = m.group(1).strip()
+    elif text.startswith("```"):
         lines = text.splitlines()
-        text = "\n".join(lines[1:-1])
-    return json.loads(text)
+        if len(lines) >= 3:
+            text = "\n".join(lines[1:-1])
+        else:
+            text = text.strip("`").strip()
+    text = text.strip()
+    # 尝试直接解析
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # 截断修复：从末尾逐步裁剪字符直到解析成功（最多裁剪 500 字符）
+    for i in range(min(500, len(text))):
+        tail = text[:len(text) - i].rstrip()
+        if not tail:
+            break
+        open_b = tail.count("{") - tail.count("}")
+        open_a = tail.count("[") - tail.count("]")
+        fixed = tail + "}" * open_b + "]" * open_a
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError:
+            continue
+    raise ValueError("无法解析 JSON")
 
 
 # ── 公开方法 ──────────────────────────────────────────────────
@@ -292,7 +318,14 @@ def grade_quiz_answer(question: str, correct_answer: str, student_answer: str, s
         result["score"] = min(float(result.get("score", 0)), score)
         return result
     except Exception:
-        return {"score": 0.0, "feedback": raw}
+        import re
+        clean = raw.strip()
+        clean = re.sub(r"```(?:json)?\s*", "", clean)
+        clean = clean.strip("`").strip()
+        m = re.search(r'"feedback"\s*:\s*"([^"]*(?:\\.[^"]*)*)"', clean, re.DOTALL)
+        if m:
+            clean = m.group(1).replace("\\n", "\n").replace('\\"', '"')
+        return {"score": 0.0, "feedback": clean}
 
 
 def adjust_learning_plan(
@@ -328,31 +361,61 @@ def adjust_learning_plan(
         return {"analysis": {}, "plan": original_plan}
 
 
-def grade_submission(content: str, reference_answer: str, rubric: str) -> dict:
+def grade_submission(content: str, reference_answer: str, rubric: str, max_score: float = 100.0) -> dict:
     """
     AI 批改单份作业。
+    max_score: 作业满分，AI 评分不会超过此值
     返回: {"ai_score": float, "comments": str, "deductions": [], "suggestions": []}
     """
-    system = (
-        "你是一个严谨的作业批改助手。根据参考答案和评分标准对学生作业进行评分。"
-        "所有输出必须使用中文，包括 comments、deductions、suggestions 中的全部文字内容。"
-        "以 JSON 格式返回，包含字段：ai_score（0-100 的数字分数）、comments（中文总体评语）、"
-        "deductions（扣分点列表，每项含 point 和 minus 字段，point 用中文描述）、"
-        "suggestions（中文修改建议列表）。"
-    )
-    user = (
-        f"【评分标准】\n{rubric}\n\n"
-        f"【参考答案】\n{reference_answer}\n\n"
-        f"【学生作业】\n{content}"
-    )
+    has_reference = reference_answer and reference_answer not in ("（无参考答案）", "(无参考答案)", "无", "暂无")
+    has_rubric = rubric and rubric not in ("按照完整性、准确性和表达清晰度评分，满分 100 分。",)
+
+    score_hint = f"满分 {max_score:.0f} 分，ai_score 不得超过该满分值。"
+    if has_reference:
+        system = (
+            "你是一个严谨的作业批改助手。根据参考答案和评分标准对学生作业进行评分。"
+            f"{score_hint}所有输出必须使用中文，包括 comments、deductions、suggestions 中的全部文字内容。"
+            f"以 JSON 格式返回，包含字段：ai_score（0-{max_score:.0f} 的数字分数，不超过满分）、comments（中文总体评语）、"
+            "deductions（扣分点列表，每项含 point 和 minus 字段，point 用中文描述）、"
+            "suggestions（中文修改建议列表）。"
+        )
+        user = (
+            f"【满分：{max_score:.0f} 分】\n"
+            f"【评分标准】\n{rubric}\n\n"
+            f"【参考答案】\n{reference_answer}\n\n"
+            f"【学生作业】\n{content}"
+        )
+    else:
+        system = (
+            "你是一个专业的教育评估助手，需要根据学生的作业内容进行独立评价。"
+            "虽然没有提供参考答案，但你应该基于常识和学生所在学段的认知水平，"
+            "对作业的整体质量、逻辑性、表达清晰度和核心观点的把握做出判断。"
+            f"{score_hint}所有输出必须使用中文。"
+            "以 JSON 格式返回，包含字段："
+            f"ai_score（0-{max_score:.0f} 的合理估分，不超过满分）、"
+            "comments（中文总体评语，包含对作业亮点和不足的分析，不少于 80 字）、"
+            "deductions（扣分点列表，每项含 point 和 minus 字段，point 用中文描述）、"
+            "suggestions（3-5 条具体可操作的中文改进建议）。"
+        )
+        rubric_hint = f"【评分维度】\n{rubric}\n\n" if has_rubric else ""
+        user = f"{rubric_hint}【满分：{max_score:.0f} 分】\n【学生作业】\n{content}\n\n请对以上作业进行独立评价，给出合理的分数和改进建议。"
     raw = _chat(system, user, temperature=0.3)
     try:
         result = _parse_json(raw)
-        # 确保 ai_score 是数字
-        result["ai_score"] = float(result.get("ai_score", 0))
+        result["ai_score"] = min(float(result.get("ai_score", 0)), max_score)
         return result
     except Exception:
-        return {"ai_score": 0.0, "comments": raw, "deductions": [], "suggestions": []}
+        # JSON 解析失败时，将原始回复清洗为纯文本评语
+        import re
+        clean = raw.strip()
+        # 去掉 markdown 代码块包裹
+        clean = re.sub(r"```(?:json)?\s*", "", clean)
+        clean = clean.strip("`").strip()
+        # 尝试提取 comments 字段的值
+        m = re.search(r'"comments"\s*:\s*"([^"]*(?:\\.[^"]*)*)"', clean, re.DOTALL)
+        if m:
+            clean = m.group(1).replace("\\n", "\n").replace('\\"', '"')
+        return {"ai_score": 0.0, "comments": clean, "deductions": [], "suggestions": []}
 
 
 def analyze_submissions(

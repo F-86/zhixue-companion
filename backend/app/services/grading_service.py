@@ -25,15 +25,36 @@ def grade_submissions(
         if not sub or sub.assignment_id != assignment_id:
             continue
 
-        # 取作业文本（优先 C++ 提取文本，其次文本提交内容）
+        # 取作业文本（优先 C++ 提取文本，其次文本提交内容，最后尝试实时提取文件）
         content = sub.extracted_text or sub.content or ""
+        if not content and sub.file_path:
+            try:
+                from app.services.file_processor_client import extract_text
+                content = extract_text(sub.file_path) or ""
+                if content:
+                    sub.extracted_text = content
+                    db.commit()
+            except Exception:
+                pass
         if not content:
+            results.append({
+                "submission_id": sub_id,
+                "student_id": sub.student_id,
+                "student_name": (db.get(User, sub.student_id) or User(name="未知")).name,
+                "ai_score": None,
+                "comments": "无法提取文本内容，请确认提交内容格式正确",
+                "deductions": [],
+                "suggestions": [],
+                "confirmed": False,
+                "error": "no_content",
+            })
             continue
 
         ref = a.reference_answer or "（无参考答案）"
         rubric = a.rubric or "按照完整性、准确性和表达清晰度评分，满分 100 分。"
+        max_score = a.full_score if a.full_score > 0 else 100.0
 
-        ai_result = minimax_client.grade_submission(content, ref, rubric)
+        ai_result = minimax_client.grade_submission(content, ref, rubric, max_score)
 
         # 写入或更新批改结果
         grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == sub_id).first()
