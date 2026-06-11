@@ -55,6 +55,23 @@ POST /api/student/courses/{course_id}/learning-plans
 | available_time_per_day | integer | 否 | 每天可用学习时间（分钟），默认 60 |
 | plan_days | integer | 否 | 计划总天数，默认 7，范围 1-60 |
 
+**响应字段说明（data 内）：**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | string | 计划 ID |
+| course_id | string | 课程 ID |
+| course_name | string | 课程名称 |
+| basis | object | 计划生成所依据的完整数据，包含 goal、available_time_per_day、plan_days、grade_records、quiz_records 等 |
+| career_direction | string | 学生职业方向 |
+| version | integer | 版本号 |
+| parent_plan_id | string | 上一版计划 ID（首次为 null） |
+| data_sources | string[] | 采集到的数据信号类型列表 |
+| analysis | object | AI 生成的学情分析 |
+| rag_references | object[] | RAG 检索到的课程材料引用 |
+| plan | object[] | 每日任务列表 |
+| created_at | string | 创建时间 |
+
 **响应示例：**
 
 ```json
@@ -128,6 +145,50 @@ GET /api/student/courses/{course_id}/learning-plans
 | --- | --- | --- | --- |
 | status | string | 否 | active、completed 或 archived |
 
+**响应示例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "course_id": "course_001",
+    "items": [
+      {
+        "id": "plan_001",
+        "course_id": "course_001",
+        "course_name": "操作系统",
+        "status": "archived",
+        "basis": {
+          "goal": "两周内提升进程调度相关知识点的掌握程度",
+          "available_time_per_day": 60,
+          "plan_days": 7
+        },
+        "career_direction": "backend",
+        "data_sources": ["scores", "quizzes"],
+        "created_at": "2026-06-10T20:00:00+08:00"
+      },
+      {
+        "id": "plan_002",
+        "course_id": "course_001",
+        "course_name": "操作系统",
+        "status": "active",
+        "basis": {
+          "goal": "两周内提升进程调度相关知识点的掌握程度",
+          "available_time_per_day": 45,
+          "plan_days": 7,
+          "adjustment_feedback": "第 2、3 天关于调度算法的内容对我来说太难了..."
+        },
+        "career_direction": "backend",
+        "data_sources": ["scores", "quizzes"],
+        "created_at": "2026-06-13T09:00:00+08:00"
+      }
+    ],
+    "total": 2
+  },
+  "message": "ok"
+}
+```
+
 ---
 
 ### 1.3 获取学习计划详情
@@ -135,6 +196,8 @@ GET /api/student/courses/{course_id}/learning-plans
 ```http
 GET /api/student/courses/{course_id}/learning-plans/{plan_id}
 ```
+
+**响应结构：** 与 [1.1 生成计划](#11-生成个性化学习计划) 的 `data` 字段一致，包含 `basis`、`analysis`、`plan` 等全部字段。
 
 ---
 
