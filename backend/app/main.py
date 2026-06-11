@@ -57,6 +57,7 @@ from app.api import (  # noqa: E402
     routes_summaries,
     routes_learning_plans,
     routes_quizzes,
+    routes_upload,
 )
 
 app.include_router(routes_auth.router, prefix="/api")
@@ -71,6 +72,7 @@ app.include_router(routes_chat.router, prefix="/api")
 app.include_router(routes_summaries.router, prefix="/api")
 app.include_router(routes_learning_plans.router, prefix="/api")
 app.include_router(routes_quizzes.router, prefix="/api")
+app.include_router(routes_upload.router, prefix="/api")
 
 
 # ── 健康检查 ──────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, Form
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -34,20 +34,28 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    files: list[UploadFile] = File(None, alias="file"),
+    file_urls: str | None = Form(None),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
+    """
+    提交作业。文本提交时传 content；文件提交时传 file_urls（多个 URL 以逗号分隔）。
+    file_urls 中的每个 URL 应来自 /api/upload 接口返回的 file_url。
+    """
     if submit_type == "text":
         if not content:
             from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="文本提交时 content 不能为空")
         sub = svc.submit_text(assignment_id, current_user.id, content, db)
     else:
-        if not files:
+        if not file_urls:
             from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="文件提交时 file 不能为空")
-        sub = svc.submit_file(assignment_id, current_user.id, files, db)
+            raise HTTPException(status_code=400, detail="文件提交时 file_urls 不能为空")
+        urls = [u.strip() for u in file_urls.split(",") if u.strip()]
+        if not urls:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="file_urls 格式不合法")
+        sub = svc.submit_file(assignment_id, current_user.id, urls, db)
 
     return _ok({
         "id": sub.id,

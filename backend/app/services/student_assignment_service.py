@@ -1,7 +1,7 @@
 """学生端作业服务：查看作业、提交作业"""
 import os
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -76,10 +76,8 @@ def submit_text(assignment_id: str, student_id: str, content: str, db: Session) 
     return sub
 
 
-def submit_file(assignment_id: str, student_id: str, files: list[UploadFile], db: Session) -> Submission:
+def submit_file(assignment_id: str, student_id: str, file_urls: list[str], db: Session) -> Submission:
     _check_can_submit(assignment_id, student_id, db)
-    for file in files:
-        _validate_file(file)
 
     sub = Submission(
         assignment_id=assignment_id,
@@ -89,19 +87,30 @@ def submit_file(assignment_id: str, student_id: str, files: list[UploadFile], db
     db.add(sub)
     db.flush()  # 获取 sub.id
 
-    for file in files:
-        filename = f"{student_id}_{assignment_id}_{sub.id}_{file.filename}"
-        save_path = os.path.join(settings.upload_dir, filename)
-        content_bytes = file.file.read()
-        with open(save_path, "wb") as f:
-            f.write(content_bytes)
+    for url in file_urls:
+        basename = os.path.basename(url)
+        save_path = os.path.join(settings.upload_dir, basename)
+        if not os.path.isfile(save_path):
+            raise HTTPException(status_code=400, detail=f"文件不存在：{url}，请先通过 /api/upload 上传")
+
+        file_size = os.path.getsize(save_path)
+        if file_size > settings.max_upload_bytes:
+            raise HTTPException(status_code=400, detail="文件超过 10 MB 限制")
+
+        # 从存储路径还原原始文件名（去掉 UUID 前缀）
+        stored_name = basename
+        original_name = stored_name.split("_", 1)[1] if "_" in stored_name else stored_name
+
         # C++ pybind11 提取文本
-        extracted = file_processor_client.extract_text(save_path)
+        try:
+            extracted = file_processor_client.extract_text(save_path)
+        except Exception:
+            extracted = None
         db.add(SubmissionFile(
             submission_id=sub.id,
-            filename=file.filename or "unknown",
+            filename=original_name,
             file_path=save_path,
-            file_size=len(content_bytes),
+            file_size=file_size,
             extracted_text=extracted,
         ))
     db.commit()
@@ -157,14 +166,3 @@ def _check_can_submit(assignment_id: str, student_id: str, db: Session) -> None:
         Submission.student_id == student_id,
     ).first():
         raise HTTPException(status_code=400, detail="已提交过，不可重复提交")
-
-
-def _validate_file(file: UploadFile) -> None:
-    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
-    if ext not in settings.allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"不支持的文件格式：{ext}")
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    file.file.seek(0)
-    if size > settings.max_upload_bytes:
-        raise HTTPException(status_code=400, detail="文件超过 10 MB 限制")

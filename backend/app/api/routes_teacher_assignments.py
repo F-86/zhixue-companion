@@ -1,7 +1,6 @@
-import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -31,7 +30,7 @@ async def publish_assignment(
     due_at: str = Form(...),
     reference_answer: str | None = Form(None),
     rubric: str | None = Form(None),
-    attachment: UploadFile | None = File(None),
+    attachment_url: str | None = Form(None),
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
@@ -42,9 +41,8 @@ async def publish_assignment(
 
     a = svc.publish_assignment(
         current_user.id, title, course, description,
-        due_dt, reference_answer, rubric, attachment, db,
+        due_dt, reference_answer, rubric, attachment_url, db,
     )
-    attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
     return _ok({
         "id": a.id, "title": a.title, "course": a.course,
         "description": a.description, "due_at": a.due_at,

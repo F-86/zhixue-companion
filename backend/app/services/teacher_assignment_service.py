@@ -1,7 +1,7 @@
 """教师端作业发布与管理服务"""
 import os
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -21,20 +21,18 @@ def publish_assignment(
     due_at,
     reference_answer: str | None,
     rubric: str | None,
-    attachment: UploadFile | None,
+    attachment_url: str | None,
     db: Session,
 ) -> Assignment:
     attachment_path = None
     attachment_text = None
 
-    if attachment:
-        ext = (attachment.filename or "").rsplit(".", 1)[-1].lower()
-        if ext not in settings.allowed_extensions:
-            raise HTTPException(status_code=400, detail=f"不支持的附件格式：{ext}")
-        filename = f"assignment_{teacher_id}_{attachment.filename}"
-        save_path = os.path.join(settings.upload_dir, filename)
-        with open(save_path, "wb") as f:
-            f.write(attachment.file.read())
+    if attachment_url:
+        # 从 file_url（如 /files/uuid_name.pdf）解析出物理路径
+        basename = os.path.basename(attachment_url)
+        save_path = os.path.join(settings.upload_dir, basename)
+        if not os.path.isfile(save_path):
+            raise HTTPException(status_code=400, detail="附件文件不存在，请先通过 /api/upload 上传")
         attachment_path = save_path
         # C++ pybind11 解析题目文本
         attachment_text = file_processor_client.extract_text(save_path)
