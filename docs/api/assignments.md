@@ -162,6 +162,7 @@ GET /api/student/courses/{course_id}/assignments/{assignment_id}/my-submission
     "id": "submission_001",
     "assignment_id": "assignment_001",
     "submit_type": "file",
+    "content": "学生提交的文本内容（仅 text/mixed 类型）",
     "file_urls": ["/files/submission_001_report.pdf", "/files/submission_001_code.zip"],
     "files": [
       { "filename": "实验报告.pdf", "file_url": "/files/submission_001_report.pdf", "file_size": 204800 },
@@ -342,9 +343,14 @@ GET /api/teacher/courses/{course_id}/assignments/{assignment_id}/submissions
         "student_id": "user_001",
         "student_name": "张三",
         "submit_type": "file",
+        "content": "学生提交的文本内容（仅 text/mixed 类型）",
+        "extracted_text": "C++ 从文件中提取的文本内容",
+        "file_url": "/files/submission_001_report.pdf",
+        "file_urls": ["/files/submission_001_report.pdf"],
         "submitted_at": "2026-06-08T14:30:00+08:00",
         "status": "submitted",
         "score": 88,
+        "ai_score": 86,
         "confirmed": true
       }
     ],
@@ -408,12 +414,25 @@ POST /api/teacher/courses/{course_id}/assignments/{assignment_id}/grade
         ],
         "suggestions": ["补充阻塞态与就绪态的转换条件", "增加调度算法对比"],
         "confirmed": false
+      },
+      {
+        "submission_id": "submission_002",
+        "student_id": "user_002",
+        "student_name": "李四",
+        "ai_score": null,
+        "comments": "无法提取文本内容，请确认提交内容格式正确",
+        "deductions": [],
+        "suggestions": [],
+        "confirmed": false,
+        "error": "no_content"
       }
     ]
   },
   "message": "graded"
 }
 ```
+
+> `ai_score` 不会超过作业设置的满分（`full_score`）。若学生只上传了无法解析的文件且未填写文本内容，ai_score 为 `null`，同时返回 `error: "no_content"`。
 
 ---
 

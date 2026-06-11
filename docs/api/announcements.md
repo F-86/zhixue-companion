@@ -197,17 +197,17 @@ GET /api/courses/{course_id}/announcements
 
 ---
 
-## 6. 学生获取公告详情
+## 6. 获取公告详情
 
 ```http
 GET /api/courses/{course_id}/announcements/{notice_id}
 ```
 
-**功能说明：** 获取公告详情，调用后自动标为已读。
+**功能说明：** 获取公告详情。学生调用后自动标为已读；教师调用返回已读人数统计。
 
-**权限：** `role = student`
+**权限：** 教师和学生均可访问（教师需是该课程创建者，学生需已加入课程）
 
-**响应示例：**
+**学生调用响应示例：**
 
 ```json
 {
@@ -220,6 +220,26 @@ GET /api/courses/{course_id}/announcements/{notice_id}
     "is_pinned": false,
     "is_read": true,
     "created_at": "2026-06-04T10:00:00+08:00"
+  },
+  "message": "ok"
+}
+```
+
+**教师调用响应示例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "notice_001",
+    "course_id": "course_001",
+    "title": "本周实验课地点变更",
+    "content": "本周五（6月7日）的操作系统实验课改在 A303 机房进行，请同学们注意。",
+    "is_pinned": false,
+    "read_count": 28,
+    "total_students": 35,
+    "created_at": "2026-06-04T10:00:00+08:00",
+    "updated_at": "2026-06-04T10:00:00+08:00"
   },
   "message": "ok"
 }

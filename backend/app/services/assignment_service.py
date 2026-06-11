@@ -140,12 +140,19 @@ def list_submissions(course_id: str, assignment_id: str, teacher_id: str, db: Se
     for s in subs:
         student = db.get(User, s.student_id)
         grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == s.id).first()
+        file_url = f"/files/{os.path.basename(s.file_path)}" if s.file_path else None
         items.append({
             "id": s.id, "student_id": s.student_id,
             "student_name": student.name if student else "",
-            "submit_type": s.submit_type, "submitted_at": s.submitted_at,
+            "submit_type": s.submit_type,
+            "content": s.content,
+            "extracted_text": s.extracted_text,
+            "file_url": file_url,
+            "file_urls": [file_url] if file_url else [],
+            "submitted_at": s.submitted_at,
             "status": s.status,
             "score": grade.final_score if grade and grade.confirmed else None,
+            "ai_score": grade.ai_score if grade else None,
             "confirmed": grade.confirmed if grade else False,
         })
     return {"assignment_id": assignment_id, "items": items, "total": len(items)}
