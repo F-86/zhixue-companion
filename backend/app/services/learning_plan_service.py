@@ -171,7 +171,7 @@ def list_plans(course_id: str, student_id: str, status: str | None, db: Session)
     career_direction = (student.extra or {}).get("career_direction") if student else None
     items = [{
         "id": p.id, "course_id": course_id, "course_name": course.name if course else "",
-        "status": p.status, "career_direction": career_direction,
+        "status": p.status, "basis": p.basis, "career_direction": career_direction,
         "data_sources": p.data_sources, "created_at": p.created_at.isoformat(),
     } for p in plans]
     return {"course_id": course_id, "items": items, "total": len(items)}
