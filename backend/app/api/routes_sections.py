@@ -2,7 +2,7 @@
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -31,11 +31,15 @@ def create_section(
     title: str = Form(...),
     description: str | None = Form(None),
     order: int | None = Form(None),
-    material: UploadFile | None = File(None),
+    material_file_id: str | None = Form(None),
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    s = svc.create_section(course_id, current_user.id, title, description, order, material, db)
+    """
+    创建课程小节。如需附带课件材料，请先通过 /api/upload 上传文件，
+    然后将返回的 file_id 通过 material_file_id 传入。
+    """
+    s = svc.create_section(course_id, current_user.id, title, description, order, material_file_id, db)
     material_url = f"/files/{os.path.basename(s.material_path)}" if s.material_path else None
     return _ok({
         "id": s.id, "course_id": course_id, "title": s.title,
@@ -67,7 +71,7 @@ def delete_section(course_id: str, section_id: str,
 # ── 教师为小节发布作业 ────────────────────────────────────────
 
 @router.post("/teacher/courses/{course_id}/sections/{section_id}/assignments", status_code=201)
-async def publish_assignment(
+def publish_assignment(
     course_id: str,
     section_id: str,
     title: str = Form(...),
@@ -76,7 +80,7 @@ async def publish_assignment(
     reference_answer: str | None = Form(None),
     rubric: str | None = Form(None),
     full_score: float = Form(100.0),
-    attachment: UploadFile | None = File(None),
+    attachment_file_id: str | None = Form(None),
     current_user=Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
@@ -85,8 +89,8 @@ async def publish_assignment(
     except ValueError:
         raise HTTPException(status_code=400, detail="due_at 格式不合法，请使用 ISO 8601")
     from app.services.assignment_service import publish_assignment as pub
-    a = await pub(course_id, section_id, current_user.id, title, description,
-                  due_dt, reference_answer, rubric, full_score, attachment, db)
+    a = pub(course_id, section_id, current_user.id, title, description,
+            due_dt, reference_answer, rubric, full_score, attachment_file_id, db)
     attachment_url = f"/files/{os.path.basename(a.attachment_path)}" if a.attachment_path else None
     from app.models.section import Section
     sec = db.get(Section, section_id)

@@ -3,9 +3,8 @@ import hashlib
 import logging
 import os
 import re
-import uuid
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -129,27 +128,20 @@ def _index_material(section: Section, db: Session | None = None) -> None:
 
 def create_section(course_id: str, teacher_id: str, title: str,
                    description: str | None, order: int | None,
-                   material: UploadFile | None, db: Session) -> Section:
+                   material_file_id: str | None, db: Session) -> Section:
     _require_teacher_course(course_id, teacher_id, db)
     if order is None:
         max_order = db.query(Section).filter(Section.course_id == course_id).count()
         order = max_order + 1
     material_path = None
     material_text = None
-    if material:
-        ext = material.filename.rsplit(".", 1)[-1].lower() if "." in material.filename else "bin"
-        fname = f"section_material_{uuid.uuid4()}.{ext}"
-        fpath = os.path.join(settings.upload_dir, fname)
-        content = material.file.read()
-        with open(fpath, "wb") as f:
-            f.write(content)
-        material_path = fpath
-        # C++ 文件处理提取文本（降级时跳过）
-        try:
-            from app.services.file_processor_client import extract_text
-            material_text = extract_text(fpath)
-        except Exception:
-            pass
+    if material_file_id:
+        from app.models.file import File as FileModel
+        file_record = db.get(FileModel, material_file_id)
+        if not file_record:
+            raise HTTPException(status_code=400, detail="课件文件不存在，请先通过 /api/upload 上传")
+        material_path = file_record.file_path
+        material_text = file_record.extracted_text
     s = Section(
         course_id=course_id, title=title, description=description,
         order=order, material_path=material_path, material_text=material_text,

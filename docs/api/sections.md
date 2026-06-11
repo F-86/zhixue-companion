@@ -20,15 +20,15 @@ POST /api/teacher/courses/{course_id}/sections
 
 **权限：** `role = teacher`，且是该课程的创建者。
 
-**请求体：**
+**功能说明：** 如需附带课件材料，需先将文件通过 `POST /api/upload` 上传，获得 `file_id` 后再传入 `material_file_id`。
 
-```json
-{
-  "title": "第一章：进程管理",
-  "description": "介绍进程的概念、状态转换和调度算法。",
-  "order": 1,
-  "material_url": "/files/materials/section_001.pdf"
-}
+**请求格式（multipart/form-data）：**
+
+```text
+title=第一章：进程管理
+description=介绍进程的概念、状态转换和调度算法。
+order=1
+material_file_id=f_abc123
 ```
 
 **字段说明：**
@@ -38,7 +38,7 @@ POST /api/teacher/courses/{course_id}/sections
 | title | string | 是 | 小节标题 |
 | description | string | 否 | 小节说明 |
 | order | integer | 否 | 排序序号，不传则追加到末尾 |
-| material_url | string | 否 | 课件/资料文件 URL |
+| material_file_id | string | 否 | 课件文件在 `files` 表中的 ID（来自 `/api/upload` 返回的 `file_id`） |
 
 **响应示例：**
 
@@ -168,7 +168,9 @@ POST /api/teacher/courses/{course_id}/sections/{section_id}/assignments
 
 **权限：** `role = teacher`
 
-**请求体（Content-Type: multipart/form-data）：**
+**功能说明：** 如有附件，需先将文件通过 `POST /api/upload` 上传，得到 `file_id` 后再传入 `attachment_file_id`。
+
+**请求格式（multipart/form-data）：**
 
 ```text
 title=进程管理练习
@@ -177,7 +179,7 @@ reference_answer=参考答案...（可选）
 rubric=满分 100 分，概念 40 分，分析 40 分，表达 20 分。（可选）
 due_at=2026-06-15T23:59:00+08:00
 full_score=100
-attachment=<二进制文件内容，可选>
+attachment_file_id=f_abc123
 ```
 
 **字段说明：**
@@ -190,7 +192,7 @@ attachment=<二进制文件内容，可选>
 | rubric | string | 否 | 评分标准 |
 | due_at | string | 是 | 截止时间（ISO 8601） |
 | full_score | integer | 否 | 满分，默认 100 |
-| attachment | file | 否 | 作业题目附件（PDF/TXT，最大 10 MB） |
+| attachment_file_id | string | 否 | 附件在 `files` 表中的 ID（来自 `/api/upload` 返回的 `file_id`） |
 
 **响应示例：**
 
