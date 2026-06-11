@@ -346,8 +346,11 @@ GET /api/teacher/courses/{course_id}/assignments/{assignment_id}/submissions
         "submit_type": "file",
         "content": "学生提交的文本内容（仅 text/mixed 类型）",
         "extracted_text": "C++ 从文件中提取的文本内容",
-        "file_url": "/files/submission_001_report.pdf",
-        "file_urls": ["/files/submission_001_report.pdf"],
+        "file_urls": ["/files/submission_001_report.pdf", "/files/submission_001_code.zip"],
+        "files": [
+          { "filename": "实验报告.pdf", "file_url": "/files/submission_001_report.pdf", "file_size": 204800 },
+          { "filename": "源代码.zip", "file_url": "/files/submission_001_code.zip", "file_size": 51200 }
+        ],
         "submitted_at": "2026-06-08T14:30:00+08:00",
         "status": "submitted",
         "score": 88,

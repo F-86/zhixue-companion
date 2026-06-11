@@ -154,7 +154,7 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    files: list[UploadFile] = File([]),
+    files: list[UploadFile] = File(None, alias="file"),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):

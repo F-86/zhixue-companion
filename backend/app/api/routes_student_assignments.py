@@ -1,5 +1,3 @@
-import os
-
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
@@ -36,7 +34,7 @@ async def submit_assignment(
     assignment_id: str,
     submit_type: str = Form(...),
     content: str | None = Form(None),
-    files: list[UploadFile] = File([]),
+    files: list[UploadFile] = File(None, alias="file"),
     current_user=Depends(require_student),
     db: Session = Depends(get_db),
 ):
@@ -48,7 +46,7 @@ async def submit_assignment(
     else:
         if not files:
             from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="文件提交时 files 不能为空")
+            raise HTTPException(status_code=400, detail="文件提交时 file 不能为空")
         sub = svc.submit_file(assignment_id, current_user.id, files, db)
 
     return _ok({
@@ -63,21 +61,4 @@ async def submit_assignment(
 
 @router.get("/student/assignments/{assignment_id}/my-submission")
 def my_submission(assignment_id: str, current_user=Depends(require_student), db: Session = Depends(get_db)):
-    sub = svc.get_my_submission(assignment_id, current_user.id, db)
-    file_records = getattr(sub, '_files', [])
-    file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in file_records]
-    files_detail = [{
-        "filename": f.filename,
-        "file_url": f"/files/{os.path.basename(f.file_path)}",
-        "file_size": f.file_size,
-    } for f in file_records]
-    return _ok({
-        "id": sub.id,
-        "assignment_id": sub.assignment_id,
-        "submit_type": sub.submit_type,
-        "content": sub.content,
-        "file_urls": file_urls,
-        "files": files_detail,
-        "submitted_at": sub.submitted_at,
-        "status": sub.status,
-    })
+    return _ok(svc.get_my_submission(assignment_id, current_user.id, db))

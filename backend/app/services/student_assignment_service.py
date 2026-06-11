@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
+from app.models.grade import AIGradingResult
 from app.models.submission import Submission, SubmissionFile
 from app.services import file_processor_client
 
@@ -108,7 +109,7 @@ def submit_file(assignment_id: str, student_id: str, files: list[UploadFile], db
     return sub
 
 
-def get_my_submission(assignment_id: str, student_id: str, db: Session) -> Submission:
+def get_my_submission(assignment_id: str, student_id: str, db: Session) -> dict:
     sub = (
         db.query(Submission)
         .filter(Submission.assignment_id == assignment_id, Submission.student_id == student_id)
@@ -117,8 +118,30 @@ def get_my_submission(assignment_id: str, student_id: str, db: Session) -> Submi
     if not sub:
         raise HTTPException(status_code=404, detail="尚未提交")
     sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == sub.id).all()
-    sub._files = sf_records  # 临时附加，供路由使用
-    return sub
+    file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+    files_detail = [{
+        "filename": f.filename,
+        "file_url": f"/files/{os.path.basename(f.file_path)}",
+        "file_size": f.file_size,
+    } for f in sf_records]
+    grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == sub.id).first()
+    return {
+        "id": sub.id,
+        "assignment_id": sub.assignment_id,
+        "submit_type": sub.submit_type,
+        "content": sub.content,
+        "file_urls": file_urls,
+        "files": files_detail,
+        "submitted_at": sub.submitted_at,
+        "status": sub.status,
+        "score": grade.final_score if grade and grade.confirmed else None,
+        "ai_score": grade.ai_score if grade else None,
+        "comments": grade.comments if grade else None,
+        "deductions": grade.deductions if grade else [],
+        "suggestions": grade.suggestions if grade else [],
+        "teacher_comment": grade.teacher_comment if grade else None,
+        "graded_at": grade.created_at if grade else None,
+    }
 
 
 # ── 内部工具 ──────────────────────────────────────────────────

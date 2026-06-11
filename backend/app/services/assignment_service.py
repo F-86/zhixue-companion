@@ -146,6 +146,11 @@ def list_submissions(course_id: str, assignment_id: str, teacher_id: str, db: Se
         # 查询提交文件
         sfiles = db.query(SubmissionFile).filter(SubmissionFile.submission_id == s.id).all()
         file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sfiles if f.file_path]
+        files_detail = [{
+            "filename": f.filename,
+            "file_url": f"/files/{os.path.basename(f.file_path)}",
+            "file_size": f.file_size,
+        } for f in sfiles]
         extracted_text = "\n".join(f.extracted_text for f in sfiles if f.extracted_text) or None
         items.append({
             "id": s.id, "student_id": s.student_id,
@@ -153,8 +158,8 @@ def list_submissions(course_id: str, assignment_id: str, teacher_id: str, db: Se
             "submit_type": s.submit_type,
             "content": s.content,
             "extracted_text": extracted_text,
-            "file_url": file_urls[0] if file_urls else None,
             "file_urls": file_urls,
+            "files": files_detail,
             "submitted_at": s.submitted_at,
             "status": s.status,
             "score": grade.final_score if grade and grade.confirmed else None,

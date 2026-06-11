@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.assignment import Assignment
-from app.models.submission import Submission
+from app.models.submission import Submission, SubmissionFile
 from app.models.user import User
 from app.schemas.teacher_assignment import AssignmentUpdateRequest
 from app.services import file_processor_client
+from app.models.grade import AIGradingResult
 
 
 def publish_assignment(
@@ -110,11 +111,27 @@ def list_submissions(assignment_id: str, teacher_id: str, db: Session) -> dict:
     items = []
     for s in subs:
         student = db.get(User, s.student_id)
+        grade = db.query(AIGradingResult).filter(AIGradingResult.submission_id == s.id).first()
+        sf_records = db.query(SubmissionFile).filter(SubmissionFile.submission_id == s.id).all()
+        file_urls = [f"/files/{os.path.basename(f.file_path)}" for f in sf_records]
+        files_detail = [{
+            "filename": f.filename,
+            "file_url": f"/files/{os.path.basename(f.file_path)}",
+            "file_size": f.file_size,
+        } for f in sf_records]
+        extracted_text = "\n".join(f.extracted_text for f in sf_records if f.extracted_text) or None
         items.append({
             "id": s.id, "student_id": s.student_id,
             "student_name": student.name if student else "未知",
             "submit_type": s.submit_type,
+            "content": s.content,
+            "extracted_text": extracted_text,
+            "file_urls": file_urls,
+            "files": files_detail,
             "submitted_at": s.submitted_at, "status": s.status,
+            "score": grade.final_score if grade and grade.confirmed else None,
+            "ai_score": grade.ai_score if grade else None,
+            "confirmed": grade.confirmed if grade else False,
         })
     return {"assignment_id": assignment_id, "items": items, "total": len(items)}
 
