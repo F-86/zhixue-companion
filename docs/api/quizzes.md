@@ -243,7 +243,7 @@ GET /api/student/courses/{course_id}/quizzes/{quiz_id}
 POST /api/student/courses/{course_id}/quizzes/{quiz_id}/start
 ```
 
-**功能说明：** 创建作答记录，返回 `attempt_id`，后续提交时需携带。每个学生每个测试只能开始一次。
+**功能说明：** 创建作答记录，返回 `attempt_id`，后续保存答案和提交时需携带。每个学生每个测试只能开始一次。
 
 **响应示例：**
 
@@ -258,15 +258,111 @@ POST /api/student/courses/{course_id}/quizzes/{quiz_id}/start
 }
 ```
 
+> 如果已经开始了该测试，调用此接口会返回 `400：已开始过该测试，请直接提交`。此时应改用 [2.4 获取作答进度](#24-获取作答进度) 获取 `attempt_id` 并继续作答。
+
 ---
 
-### 2.4 提交答案
+### 2.4 获取作答进度
+
+```http
+GET /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}
+```
+
+**功能说明：** 获取当前作答进度，返回已保存的逐题答案，用于刷新页面后恢复作答状态。
+
+**响应示例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "attempt_id": "attempt_001",
+    "status": "in_progress",
+    "started_at": "2026-06-10T10:05:00+08:00",
+    "submitted_at": null,
+    "answers": {
+      "q_001": "B",
+      "q_002": "false"
+    },
+    "answered_count": 2
+  },
+  "message": "ok"
+}
+```
+
+> `answers` 为 `{question_id: answer}` 的映射，仅包含已保存过答案的题目。如果 `status` 为 `submitted`，则不能再修改答案。`attempt_id` 可从 [2.2 获取测试详情](#22-获取测试详情) 的 `attempt.id` 字段获取。
+
+---
+
+### 2.5 逐题保存答案
+
+```http
+PUT /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/answers
+```
+
+**功能说明：** 逐题保存/更新答案。学生可边做边保存，已保存的答案可多次覆盖更新。仅限 `in_progress` 状态的 attempt。
+
+**请求体：**
+
+```json
+{
+  "question_id": "q_001",
+  "answer": "B"
+}
+```
+
+**响应示例：**
+
+```json
+{
+  "success": true,
+  "data": {
+    "question_id": "q_001",
+    "saved": true
+  },
+  "message": "saved"
+}
+```
+
+> 单选题答案为选项 key（如 `"B"`），多选题答案为 JSON 数组字符串（如 `"[\"A\",\"C\"]"`），判断题为 `"true"` / `"false"`，简答题为文本。
+
+---
+
+### 2.6 提交答案
 
 ```http
 POST /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/submit
 ```
 
 **功能说明：** 提交所有题目的答案，系统自动批改：客观题立即给分，简答题调用 MiniMax 批改。
+
+- 请求体中传入的答案将覆盖之前通过"逐题保存"保存的答案
+- 未在请求体中传入、但之前已逐题保存过的答案也会被自动批改
+- 既未传入也未保存的题目得 0 分
+
+因此，学生可以：
+1. 所有题目都在请求体中一次性提交（传统模式）
+2. 部分逐题保存 + 部分在提交时传参
+3. 全部逐题保存，提交时只需传空数组 `{"answers": []}`
+
+---
+
+### 2.6 提交答案
+
+```http
+POST /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/submit
+```
+
+**功能说明：** 提交所有题目的答案，系统自动批改：客观题立即给分，简答题调用 MiniMax 批改。
+
+- 请求体中传入的答案将覆盖之前通过"逐题保存"保存的答案
+- 未在请求体中传入、但之前已逐题保存过的答案也会被自动批改
+- 既未传入也未保存的题目得 0 分
+
+因此，学生可以：
+1. 所有题目都在请求体中一次性提交（传统模式）
+2. 部分逐题保存 + 部分在提交时传参
+3. 全部逐题保存，提交时只需传空数组 `{"answers": []}`
 
 **请求体：**
 
@@ -303,7 +399,7 @@ POST /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/su
 
 ---
 
-### 2.5 查看测试结果
+### 2.7 查看测试结果
 
 ```http
 GET /api/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/result

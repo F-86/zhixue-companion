@@ -215,65 +215,83 @@ def submit_attempt(course_id: str, quiz_id: str, attempt_id: str,
     学生提交答案。
     客观题（单选、多选、判断）自动批改；简答题调用 MiniMax 批改。
     answers: [{"question_id": str, "answer": str}, ...]
+    传入的答案会覆盖之前通过 save_answer 保存的答案；
+    未传入但之前已保存的答案也会被自动批改。
     """
     _require_enrollment(course_id, student_id, db)
     _require_quiz(quiz_id, course_id, db)
     attempt = _require_attempt(attempt_id, student_id, db)
     if attempt.status == "submitted":
         raise HTTPException(status_code=400, detail="已提交，不能重复提交")
+    if attempt.quiz_id != quiz_id:
+        raise HTTPException(status_code=400, detail="attempt 不属于该测试")
     questions = {
         q.id: q for q in db.query(QuizQuestion).filter(QuizQuestion.quiz_id == quiz_id).all()
+    }
+    # 请求中传入的答案（会覆盖已保存的）
+    submitted_map = {a.get("question_id"): a.get("answer", "") for a in answers}
+    # 已保存但未批改的答案
+    saved_answers = {
+        a.question_id: a
+        for a in db.query(QuizAnswer).filter(QuizAnswer.attempt_id == attempt_id).all()
     }
     total_score = 0.0
     full_score = sum(q.score for q in questions.values())
     results = []
-    for ans in answers:
-        qid = ans.get("question_id")
-        student_answer = ans.get("answer", "")
-        question = questions.get(qid)
-        if not question:
+    for q in questions.values():
+        qid = q.id
+        # 确定最终答案：请求传入 > 已保存 > 空
+        if qid in submitted_map:
+            student_answer = submitted_map[qid]
+        elif qid in saved_answers:
+            student_answer = saved_answers[qid].answer or ""
+        else:
+            # 未作答
+            results.append({
+                "question_id": qid, "is_correct": None,
+                "score": 0.0, "ai_feedback": None,
+                "correct_answer": q.correct_answer,
+                "explanation": q.explanation,
+            })
             continue
-        # 避免重复答题
-        existing_ans = db.query(QuizAnswer).filter(
-            QuizAnswer.attempt_id == attempt_id,
-            QuizAnswer.question_id == qid,
-        ).first()
-        if existing_ans:
-            continue
+        # 批改
         is_correct = None
         score = 0.0
         ai_feedback = None
-        if question.question_type == "short_answer":
-            # 简答题：调用 MiniMax 批改
+        if q.question_type == "short_answer":
             try:
                 from app.services import minimax_client
                 result = minimax_client.grade_quiz_answer(
-                    question.content,
-                    question.correct_answer or "",
-                    student_answer,
-                    question.score,
+                    q.content, q.correct_answer or "", student_answer, q.score,
                 )
                 score = result.get("score", 0.0)
                 ai_feedback = result.get("feedback", "")
-                is_correct = score >= question.score * 0.6  # 60% 以上视为基本正确
+                is_correct = score >= q.score * 0.6
             except Exception:
                 score = 0.0
                 ai_feedback = "自动批改暂时不可用"
         else:
-            # 客观题：直接判断
-            is_correct = _is_correct(question, student_answer)
-            score = question.score if is_correct else 0.0
+            is_correct = _is_correct(q, student_answer)
+            score = q.score if is_correct else 0.0
         total_score += score
-        db.add(QuizAnswer(
-            attempt_id=attempt_id, question_id=qid,
-            answer=student_answer, is_correct=is_correct,
-            score=score, ai_feedback=ai_feedback,
-        ))
+        # 更新或新建 QuizAnswer
+        existing_ans = saved_answers.get(qid)
+        if existing_ans:
+            existing_ans.answer = student_answer
+            existing_ans.is_correct = is_correct
+            existing_ans.score = score
+            existing_ans.ai_feedback = ai_feedback
+        else:
+            db.add(QuizAnswer(
+                attempt_id=attempt_id, question_id=qid,
+                answer=student_answer, is_correct=is_correct,
+                score=score, ai_feedback=ai_feedback,
+            ))
         results.append({
             "question_id": qid, "is_correct": is_correct,
             "score": score, "ai_feedback": ai_feedback,
-            "correct_answer": question.correct_answer,
-            "explanation": question.explanation,
+            "correct_answer": q.correct_answer,
+            "explanation": q.explanation,
         })
     attempt.status = "submitted"
     attempt.total_score = round(total_score, 1)
@@ -283,6 +301,58 @@ def submit_attempt(course_id: str, quiz_id: str, attempt_id: str,
     return {
         "attempt_id": attempt_id, "total_score": attempt.total_score,
         "full_score": full_score, "results": results,
+    }
+
+
+def save_answer(course_id: str, quiz_id: str, attempt_id: str,
+                student_id: str, question_id: str, answer: str, db: Session) -> dict:
+    """逐题保存/更新答案，仅限 in_progress 状态的 attempt。"""
+    _require_enrollment(course_id, student_id, db)
+    _require_quiz(quiz_id, course_id, db)
+    attempt = _require_attempt(attempt_id, student_id, db)
+    if attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="测试已提交，不能修改答案")
+    if attempt.quiz_id != quiz_id:
+        raise HTTPException(status_code=400, detail="attempt 不属于该测试")
+    # 验证题目属于该测试
+    question = db.get(QuizQuestion, question_id)
+    if not question or question.quiz_id != quiz_id:
+        raise HTTPException(status_code=404, detail="题目不存在")
+    # 查找已有答案，更新或新建
+    existing_ans = db.query(QuizAnswer).filter(
+        QuizAnswer.attempt_id == attempt_id,
+        QuizAnswer.question_id == question_id,
+    ).first()
+    if existing_ans:
+        existing_ans.answer = answer
+    else:
+        db.add(QuizAnswer(
+            attempt_id=attempt_id, question_id=question_id, answer=answer,
+        ))
+    db.commit()
+    return {"question_id": question_id, "saved": True}
+
+
+def get_attempt_for_resume(course_id: str, quiz_id: str, attempt_id: str,
+                            student_id: str, db: Session) -> dict:
+    """获取作答进度，用于学生继续作答（仅限 in_progress 状态）。"""
+    _require_enrollment(course_id, student_id, db)
+    _require_quiz(quiz_id, course_id, db)
+    attempt = _require_attempt(attempt_id, student_id, db)
+    if attempt.quiz_id != quiz_id:
+        raise HTTPException(status_code=400, detail="attempt 不属于该测试")
+    # 获取已保存的答案
+    saved_answers = db.query(QuizAnswer).filter(
+        QuizAnswer.attempt_id == attempt_id,
+    ).all()
+    answers_map = {a.question_id: a.answer for a in saved_answers if a.answer is not None}
+    return {
+        "attempt_id": attempt.id,
+        "status": attempt.status,
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+        "answers": answers_map,
+        "answered_count": len(answers_map),
     }
 
 

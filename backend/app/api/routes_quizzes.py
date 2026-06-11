@@ -47,6 +47,11 @@ class SubmitRequest(BaseModel):
     answers: list[AnswerIn]
 
 
+class SaveAnswerRequest(BaseModel):
+    question_id: str
+    answer: str
+
+
 # ── 教师端 ────────────────────────────────────────────────────
 
 @router.post("/teacher/courses/{course_id}/quizzes", status_code=201)
@@ -95,6 +100,22 @@ def get_quiz(course_id: str, quiz_id: str,
 def start_attempt(course_id: str, quiz_id: str,
                    current_user=Depends(require_student), db: Session = Depends(get_db)):
     return _ok(svc.start_attempt(course_id, quiz_id, current_user.id, db), "started")
+
+
+@router.get("/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}")
+def get_attempt(course_id: str, quiz_id: str, attempt_id: str,
+                current_user=Depends(require_student), db: Session = Depends(get_db)):
+    """获取当前作答进度，用于继续作答。"""
+    return _ok(svc.get_attempt_for_resume(course_id, quiz_id, attempt_id, current_user.id, db))
+
+
+@router.put("/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/answers")
+def save_answer(course_id: str, quiz_id: str, attempt_id: str,
+                req: SaveAnswerRequest,
+                current_user=Depends(require_student), db: Session = Depends(get_db)):
+    """逐题保存答案，用于继续作答。"""
+    return _ok(svc.save_answer(course_id, quiz_id, attempt_id, current_user.id,
+                                req.question_id, req.answer, db), "saved")
 
 
 @router.post("/student/courses/{course_id}/quizzes/{quiz_id}/attempts/{attempt_id}/submit")
