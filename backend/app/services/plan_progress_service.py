@@ -44,7 +44,7 @@ def get_progress(course_id: str, plan_id: str, student_id: str, db: Session) -> 
             "section_title": item.get("section_title"),
             "completed": record.completed if record else False,
             "feedback": record.feedback if record else None,
-            "completed_at": record.completed_at if record else None,
+            "completed_at": record.completed_at.isoformat() if record else None,
         })
     return {
         "plan_id": plan_id, "version": plan.version,
@@ -85,7 +85,7 @@ def get_plan_effect(course_id: str, plan_id: str, student_id: str, db: Session) 
     avg_before = round(sum(r["rate"] for r in before) / len(before), 2) if before else None
     avg_after = round(sum(r["rate"] for r in after) / len(after), 2) if after else None
     return {
-        "plan_id": plan_id, "plan_created_at": plan.created_at,
+        "plan_id": plan_id, "plan_created_at": plan.created_at.isoformat(),
         "assignment_effect": {
             "before": {"count": len(before), "avg_rate": avg_before, "records": before},
             "after": {"count": len(after), "avg_rate": avg_after, "records": after},
@@ -139,5 +139,5 @@ def adjust_plan(course_id: str, plan_id: str, student_id: str,
         "data_sources": new_plan.data_sources,
         "analysis": new_plan.analysis,
         "plan": new_plan.plan,
-        "created_at": new_plan.created_at,
+        "created_at": new_plan.created_at.isoformat(),
     }
