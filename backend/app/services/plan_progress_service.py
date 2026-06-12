@@ -22,6 +22,9 @@ def mark_task(course_id: str, plan_id: str, student_id: str,
     """标记某天任务完成情况，先验证 day 在计划范围内。"""
     plan = get_plan_repo(course_id, plan_id, student_id, db)
     valid_days = {item.get("day") for item in plan.plan}
+    if not valid_days:
+        plan_days = plan.basis.get("plan_days", 0) if plan.basis else 0
+        valid_days = set(range(1, plan_days + 1))
     return _repo_mark_task(course_id, plan_id, student_id, day, completed, feedback, db, valid_days)
 
 
@@ -30,7 +33,8 @@ def get_progress(course_id: str, plan_id: str, student_id: str, db: Session) -> 
     _require_enrollment(course_id, student_id, db)
     plan = get_plan_repo(course_id, plan_id, student_id, db)
     progress_records = get_progress_map(plan_id, student_id, db)
-    total = len(plan.plan)
+    plan_days = plan.basis.get("plan_days", 0) if plan.basis else 0
+    total = len(plan.plan) or plan_days
     completed_count = sum(1 for r in progress_records.values() if r.completed)
     tasks = []
     for item in sorted(plan.plan, key=lambda x: x.get("day", 0)):
@@ -48,7 +52,7 @@ def get_progress(course_id: str, plan_id: str, student_id: str, db: Session) -> 
         })
     return {
         "plan_id": plan_id, "version": plan.version,
-        "plan_days": plan.basis.get("plan_days"),
+        "plan_days": plan_days,
         "total_days": total, "completed_days": completed_count,
         "completion_rate": round(completed_count / total, 2) if total else 0.0,
         "tasks": tasks,

@@ -283,6 +283,22 @@ def generate_summary(title: str, source_text: str, summary_type: str, course: st
         return {"overview": raw, "key_points": [], "difficult_points": [], "review_tips": []}
 
 
+def _fallback_plan(plan_days: int, available_minutes: int, course: str) -> list:
+    """当 AI 生成失败时，生成一个基本的占位计划，确保学生可以正常打卡。"""
+    tasks = ["复习课堂笔记，整理知识框架", "完成课后练习，巩固基础概念",
+             "针对薄弱知识点做专项训练", "阅读教材对应章节，做好标注",
+             "整理错题本，分析错误原因", "进行单元小测，检验学习效果",
+             "回顾本周所学，撰写学习总结"]
+    plan = []
+    for d in range(1, plan_days + 1):
+        plan.append({
+            "day": d,
+            "task": f"{course} - {tasks[(d - 1) % len(tasks)]}",
+            "duration_minutes": available_minutes,
+        })
+    return plan
+
+
 def generate_learning_plan(course: str, goal: str, basis: dict, available_minutes: int, plan_days: int = 7) -> dict:
     """
     生成个性化学习计划。
@@ -304,9 +320,21 @@ def generate_learning_plan(course: str, goal: str, basis: dict, available_minute
     )
     raw = _chat(system, user)
     try:
-        return _parse_json(raw)
+        result = _parse_json(raw)
+        if not result.get("plan"):
+            logger.warning("MiniMax 返回的计划中 plan 字段为空，raw 前200字符: %s", raw[:200])
+            analysis = result.get("analysis", {}) if isinstance(result, dict) else {}
+            return {
+                "analysis": analysis,
+                "plan": _fallback_plan(plan_days, available_minutes, course),
+            }
+        return result
     except Exception:
-        return {"analysis": {}, "plan": []}
+        logger.warning("学习计划 JSON 解析失败，raw 前200字符: %s", raw[:200] if 'raw' in dir() else 'N/A')
+        return {
+            "analysis": {},
+            "plan": _fallback_plan(plan_days, available_minutes, course),
+        }
 
 
 def grade_quiz_answer(question: str, correct_answer: str, student_answer: str, score: float) -> dict:
@@ -369,9 +397,14 @@ def adjust_learning_plan(
     )
     raw = _chat(system, user)
     try:
-        return _parse_json(raw)
+        result = _parse_json(raw)
+        if not result.get("plan"):
+            logger.warning("调整计划结果中 plan 字段为空，回退到原计划")
+            return {"analysis": result.get("analysis", {}), "plan": original_plan or _fallback_plan(7, available_minutes, course)}
+        return result
     except Exception:
-        return {"analysis": {}, "plan": original_plan}
+        logger.warning("调整计划 JSON 解析失败，回退到原计划")
+        return {"analysis": {}, "plan": original_plan or _fallback_plan(7, available_minutes, course)}
 
 
 def grade_submission(content: str, reference_answer: str, rubric: str, max_score: float = 100.0) -> dict:
